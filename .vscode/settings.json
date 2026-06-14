@@ -1,0 +1,18 @@
+{
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true,
+    "python.testing.pytestArgs": [
+        "src"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.analysis.diagnosticSeverityOverrides": {
+        "deprecated": "warning"
+    },
+    "python.languageServer": "Pylance",
+    "python.analysis.languageServerMode": "full",
+    "python.analysis.extraPaths": [
+        "src/yokel"
+    ],
+    "python.analysis.typeCheckingMode": "standard"
+}
