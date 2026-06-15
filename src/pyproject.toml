@@ -1,24 +1,27 @@
-[project]
-name = "yoke"
+[tool.poetry]
+name = "yokel"
 version = "0.1.0"
-description = ""
-authors = [
-    {name = "Rusty Swayne", email = "you@example.com"}
-]
-packages = [
-   { include = "yoke" }
-]
-requires-python = ">=3.12"
-dependencies = [
-    "pyyaml (>=6.0.3,<7.0.0)"
-]
+description = "A non-published project that contains the datacore v2 projects"
+authors = ["Rusty Swayne"]
+readme = "README.md"
+package-mode = false
+requires-poetry = "^2.4"
+
+[tool.poetry.requires-plugins]
+poetry-monoranger-plugin = "^1.8.1"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+
+# Subprojects - always installed
+[tool.poetry.group.projects.dependencies]
+yokel-core = { path = "yokel-core", develop = true }
+
+[tool.poetry.group.projects]
+optional = false
 
 
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
-
-[dependency-groups]
-dev = [
-    "pytest (>=9.1.0,<10.0.0)"
-]
+[tool.black]
+target-version = ["py311"]
+line-length = 88
+preview = true

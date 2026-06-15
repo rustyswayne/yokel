@@ -1,6 +1,6 @@
 import pytest
 from typing import Any
-from yokel.configuration.manager import PluginConfigurationSection
+from yokel.core.configuration.manager import PluginConfigurationSection
 
 
 def test_plugin_configuration_section_initialization() -> None:

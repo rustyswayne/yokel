@@ -1,6 +1,6 @@
 import pytest
 from typing import Dict, Any
-from yokel.configuration.manager import ConfigurationSection
+from yokel.core.configuration.manager import ConfigurationSection
 
 
 @pytest.mark.parametrize(

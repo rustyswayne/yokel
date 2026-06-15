@@ -1,4 +1,4 @@
-from yokel.events import EventHandler
+from yokel.core.events import EventHandler
 
 
 def test_can_register_event():

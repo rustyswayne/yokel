@@ -10,9 +10,8 @@ class IConfigurationContainer(metaclass=abc.ABCMeta):
 
     @classmethod
     def __subclasshook__(cls, subclass) -> bool:  # noqa: D105, FNE005
-        return (
-            super().__subclasshook__(subclass)
-            and hasattr(subclass, "build")
+        if (
+            hasattr(subclass, "build")
             and callable(subclass.build)
             and hasattr(subclass, "get")
             and callable(subclass.get)
@@ -22,8 +21,10 @@ class IConfigurationContainer(metaclass=abc.ABCMeta):
             and callable(subclass.patch)
             and hasattr(subclass, "show")
             and callable(subclass.show)
-            or NotImplemented
-        )
+        ):
+            return True
+
+        return NotImplemented
 
     @abc.abstractmethod
     def build(self) -> Dict[str, Any]:
@@ -56,17 +57,18 @@ class IConfigurationSection(IConfigurationContainer):
 
     @classmethod
     def __subclasshook__(cls, subclass) -> bool:  # noqa: D105, FNE005
-        return (
-            super().__subclasshook__(subclass)
-            and hasattr(subclass, "section_name")
+        if (
+            hasattr(subclass, "section_name")
             and hasattr(subclass, "set_parent_callable")
             and callable(subclass.set_parent_callable)
             and hasattr(subclass, "on_configuration_changing")
             and callable(subclass.on_configuration_changing)
             and hasattr(subclass, "on_configuration_changed")
             and callable(subclass.on_configuration_changed)
-            or NotImplemented
-        )
+        ):
+            return True
+
+        return NotImplemented
 
     @property
     @abc.abstractmethod
@@ -99,12 +101,10 @@ class IPluginConfigurationSection(IConfigurationSection):
 
     @classmethod
     def __subclasshook__(cls, subclass) -> bool:  # noqa: D105, FNE005
-        return (
-            super().__subclasshook__(subclass)
-            and hasattr(subclass, "activate")
-            and callable(subclass.activate)
-            or NotImplemented
-        )
+        if hasattr(subclass, "activate") and callable(subclass.activate):
+            return True
+
+        return NotImplemented
 
     @abc.abstractmethod
     def activate(self, key: str, *args, **kwargs) -> Any:
@@ -117,7 +117,7 @@ class IConfigurationManager(metaclass=abc.ABCMeta):
 
     @classmethod
     def __subclasshook__(cls, subclass) -> bool:  # noqa: D105, FNE005
-        return (
+        if (
             hasattr(subclass, "plugins")
             and hasattr(subclass, "value_store")
             and hasattr(subclass, "get_section")
@@ -128,8 +128,10 @@ class IConfigurationManager(metaclass=abc.ABCMeta):
             and callable(subclass.register_section)
             and hasattr(subclass, "clear")
             and callable(subclass.clear)
-            or NotImplemented
-        )
+        ):
+            return True
+
+        return NotImplemented
 
     @property
     @abc.abstractmethod

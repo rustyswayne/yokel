@@ -1,12 +1,12 @@
 import pytest
 from typing import Sequence
-from yokel.configuration.manager import (
+from yokel.core.configuration.manager import (
     ConfigurationManager,
     ConfigurationSection,
     PluginConfigurationSection,
     StringConfigurationSection,
 )
-from yokel.configuration.interfaces import (
+from yokel.core.configuration.interfaces import (
     IConfigurationManager,
     IConfigurationSection,
     IPluginConfigurationSection,
