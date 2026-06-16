@@ -101,7 +101,7 @@ class Conversation:
             )
 
         response = self.__provider.send(
-            messages=tuple(self.__history),  # type: ignore[arg-type]
+            messages=tuple(self.__history),
             model=self.__model,
             system=self.__system,
             max_tokens=self.__max_tokens,

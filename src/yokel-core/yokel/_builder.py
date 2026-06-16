@@ -95,7 +95,7 @@ class MessageBuilder:
             )
 
         return self._provider.send(
-            messages=self._messages,  # type: ignore[arg-type]
+            messages=self._messages,
             model=self._model,
             system=self._system,
             max_tokens=self._max_tokens,
