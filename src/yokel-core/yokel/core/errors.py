@@ -35,6 +35,7 @@ class UnknownModelError(YokelError):
     def __init__(self, model_id: str) -> None:
         super().__init__(
             f"No provider is registered for model '{model_id}'. "
-            "Install and import the appropriate yokel provider package before calling model()."
+            "Install and import the appropriate yokel provider package "
+            "before calling model()."
         )
         self.model_id = model_id
