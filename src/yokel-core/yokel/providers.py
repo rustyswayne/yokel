@@ -15,6 +15,7 @@ class Provider(metaclass=abc.ABCMeta):
     def __subclasshook__(cls, subclass: type) -> bool:  # noqa: D105, FNE005
         if hasattr(subclass, "send") and callable(subclass.send):
             return True
+
         return cast(bool, NotImplemented)
 
     @abstractmethod
