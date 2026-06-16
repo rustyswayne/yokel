@@ -11,7 +11,6 @@ from yokel.core.models import Response as Response
 from yokel.core.models import Usage as Usage
 from yokel.providers import Provider as Provider
 
-
 __all__ = [
     "Yokel",
     "MessageBuilder",

@@ -1,4 +1,4 @@
-"""Tests for _builder.MessageBuilder: system, user, assistant, max_tokens, send, conversation."""
+"""Tests for MessageBuilder: system, user, assistant, max_tokens, send, conversation."""
 
 from __future__ import annotations
 
@@ -336,7 +336,7 @@ class TestMessageBuilderConversation:
         )
 
     def test_conversation_inherits_existing_messages_as_history(self) -> None:
-        """conversation() seeds the Conversation history from the builder's _messages."""
+        """conversation() seeds Conversation history from the builder's _messages."""
         # Arrange
         builder = _make_builder(
             _messages=({"role": "user", "content": "Seed message"},)
