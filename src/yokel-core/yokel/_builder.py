@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
+from yokel._conversation import Conversation
+from yokel.core.models import Response
 from yokel.providers import Provider
-
-if TYPE_CHECKING:
-    from yokel._conversation import Conversation
-    from yokel.core.models import Response
 
 
 @dataclass(frozen=True)
@@ -91,13 +88,12 @@ class MessageBuilder:
             AuthError: Provider authentication rejected the request.
             ProviderError: Provider returned an upstream HTTP or API error.
         """
-        from yokel.core.models import Response as _Response  # noqa: F401
-
         if not self._messages:
             raise ValueError(
                 "Cannot send: no messages have been added. "
                 "Call .user() at least once before .send()."
             )
+
         return self._provider.send(
             messages=self._messages,  # type: ignore[arg-type]
             model=self._model,
@@ -115,9 +111,7 @@ class MessageBuilder:
         Returns:
             A new Conversation ready for multi-turn use.
         """
-        from yokel._conversation import Conversation as _Conversation
-
-        return _Conversation(
+        return Conversation(
             provider=self._provider,
             model=self._model,
             system=self._system,
