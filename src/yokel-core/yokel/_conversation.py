@@ -93,11 +93,13 @@ class Conversation:
                 "Cannot send: conversation history is empty. "
                 "Call .user() before .send()."
             )
+
         if self.__history[-1]["role"] != "user":
             raise ValueError(
                 "Cannot send: the last message is not a user turn. "
                 "Call .user() before calling .send() again."
             )
+
         response = self.__provider.send(
             messages=tuple(self.__history),  # type: ignore[arg-type]
             model=self.__model,
