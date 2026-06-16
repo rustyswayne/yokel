@@ -11,6 +11,8 @@ if TYPE_CHECKING:
 class Provider(metaclass=abc.ABCMeta):
     """Abstract base class for LLM provider adapters."""
 
+    default_max_tokens: int = 1024
+
     @classmethod
     def __subclasshook__(cls, subclass: type) -> bool:  # noqa: D105, FNE005
         if hasattr(subclass, "send") and callable(subclass.send):
