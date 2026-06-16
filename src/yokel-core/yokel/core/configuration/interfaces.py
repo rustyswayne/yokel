@@ -1,5 +1,5 @@
 import abc
-from typing import Callable, Dict, Any, Optional
+from typing import Any, Callable, Dict, Optional, cast
 
 EVENT_CONFIGURATION_CHANGING = "configuration_changing"
 EVENT_CONFIGURATION_CHANGED = "configuration_changed"
@@ -9,7 +9,7 @@ class IConfigurationContainer(metaclass=abc.ABCMeta):
     """Represents a container for configuration sections."""
 
     @classmethod
-    def __subclasshook__(cls, subclass) -> bool:  # noqa: D105, FNE005
+    def __subclasshook__(cls, subclass: type) -> bool:  # noqa: D105, FNE005
         if (
             hasattr(subclass, "build")
             and callable(subclass.build)
@@ -24,7 +24,7 @@ class IConfigurationContainer(metaclass=abc.ABCMeta):
         ):
             return True
 
-        return NotImplemented
+        return cast(bool, NotImplemented)
 
     @abc.abstractmethod
     def build(self) -> Dict[str, Any]:
@@ -56,7 +56,7 @@ class IConfigurationSection(IConfigurationContainer):
     """Represents a section of configuration."""
 
     @classmethod
-    def __subclasshook__(cls, subclass) -> bool:  # noqa: D105, FNE005
+    def __subclasshook__(cls, subclass: type) -> bool:  # noqa: D105, FNE005
         if (
             hasattr(subclass, "section_name")
             and hasattr(subclass, "set_parent_callable")
@@ -68,7 +68,7 @@ class IConfigurationSection(IConfigurationContainer):
         ):
             return True
 
-        return NotImplemented
+        return cast(bool, NotImplemented)
 
     @property
     @abc.abstractmethod
@@ -100,14 +100,14 @@ class IPluginConfigurationSection(IConfigurationSection):
     """Represents a plugin configuration section."""
 
     @classmethod
-    def __subclasshook__(cls, subclass) -> bool:  # noqa: D105, FNE005
+    def __subclasshook__(cls, subclass: type) -> bool:  # noqa: D105, FNE005
         if hasattr(subclass, "activate") and callable(subclass.activate):
             return True
 
-        return NotImplemented
+        return cast(bool, NotImplemented)
 
     @abc.abstractmethod
-    def activate(self, key: str, *args, **kwargs) -> Any:
+    def activate(self, key: str, *args: Any, **kwargs: Any) -> Any:
         """Activates the configured plugin."""
         raise NotImplementedError
 
@@ -116,7 +116,7 @@ class IConfigurationManager(metaclass=abc.ABCMeta):
     """Represents a configuration manager."""
 
     @classmethod
-    def __subclasshook__(cls, subclass) -> bool:  # noqa: D105, FNE005
+    def __subclasshook__(cls, subclass: type) -> bool:  # noqa: D105, FNE005
         if (
             hasattr(subclass, "plugins")
             and hasattr(subclass, "value_store")
@@ -131,7 +131,7 @@ class IConfigurationManager(metaclass=abc.ABCMeta):
         ):
             return True
 
-        return NotImplemented
+        return cast(bool, NotImplemented)
 
     @property
     @abc.abstractmethod

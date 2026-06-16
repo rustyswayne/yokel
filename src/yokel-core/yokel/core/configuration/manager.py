@@ -1,16 +1,18 @@
-import yaml
 import importlib
 from copy import deepcopy
-from typing import Dict, Any, Optional, Callable, Sequence, cast
+from typing import Any, Callable, Dict, Optional, Sequence, cast
+
+import yaml
+
+from ..events import EventHandler
 from .interfaces import (
-    IConfigurationManager,
-    IConfigurationContainer,
-    IConfigurationSection,
-    IPluginConfigurationSection,
     EVENT_CONFIGURATION_CHANGED,
     EVENT_CONFIGURATION_CHANGING,
+    IConfigurationContainer,
+    IConfigurationManager,
+    IConfigurationSection,
+    IPluginConfigurationSection,
 )
-from ..events import EventHandler
 
 
 def default_get_parent_callable() -> Dict[str, Any]:
@@ -140,12 +142,13 @@ class PluginConfigurationSection(ConfigurationSection, IPluginConfigurationSecti
         super().__init__("plugins", config)
         self.on_configuration_changing(lambda _, value: self.__validate_value(value))
 
-    def activate(self, key: str, *args, **kwargs) -> None:
+    def activate(self, key: str, *args: Any, **kwargs: Any) -> Any:
         """Activates the plugin configuration section."""
         module_class = self.get(key)
         if not isinstance(module_class, str):
             raise TypeError(
-                f"Plugin configuration for '{key}' must be a string in the format 'module_name, class_name'."
+                f"Plugin configuration for '{key}' must be a string in format "
+                "'module_name, class_name'."
             )
 
         split = module_class.rsplit(",", 1)
@@ -157,8 +160,8 @@ class PluginConfigurationSection(ConfigurationSection, IPluginConfigurationSecti
         self,
         class_name: str,
         module_name: str,
-        *args,
-        **kwargs,
+        *args: Any,
+        **kwargs: Any,
     ) -> Any:
         """Get an instance of a class."""
         module = importlib.import_module(module_name)
@@ -169,13 +172,15 @@ class PluginConfigurationSection(ConfigurationSection, IPluginConfigurationSecti
         """Validate the value for the plugin configuration."""
         if value is None or isinstance(value, str) is False:
             raise ValueError(
-                "Plugin configuration values must be strings in the format 'module_name, class_name'."
+                "Plugin configuration values must be strings in format "
+                "'module_name, class_name'."
             )
 
         split = value.rsplit(",", 1)
         if len(split) != 2 or not all(part.strip() for part in split):
             raise ValueError(
-                "Plugin configuration values must be in the format 'module_name, class_name'."
+                "Plugin configuration values must be in format "
+                "'module_name, class_name'."
             )
 
 
@@ -244,7 +249,8 @@ class ConfigurationManager(IConfigurationManager):
                 and isinstance(section, IPluginConfigurationSection) is False
             ):
                 raise TypeError(
-                    "The 'plugins' section must be an instance of IPluginConfigurationSection."
+                    "The 'plugins' section must be an instance of "
+                    "IPluginConfigurationSection."
                 )
 
             self.__sections[section.section_name] = section

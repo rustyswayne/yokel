@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import abc
 from abc import abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from yokel.core.models import Response
@@ -13,16 +13,14 @@ class Provider(metaclass=abc.ABCMeta):
 
     @classmethod
     def __subclasshook__(cls, subclass: type) -> bool:  # noqa: D105, FNE005
-        return (
-            True
-            if hasattr(subclass, "send") and callable(subclass.send)
-            else NotImplemented
-        )
+        if hasattr(subclass, "send") and callable(subclass.send):
+            return True
+        return cast(bool, NotImplemented)
 
     @abstractmethod
     def send(
         self,
-        messages: tuple[dict, ...],
+        messages: tuple[dict[str, Any], ...],
         model: str,
         system: str | None,
         max_tokens: int,

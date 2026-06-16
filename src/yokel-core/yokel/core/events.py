@@ -1,24 +1,23 @@
 import types
-from typing import Callable, List, Dict, Any
+from typing import Any, Callable, Dict, List
 
 
 class EventHandler:
-    """
-    Represents a simple event handler class for synchronous event implementations based registered callback functions.
+    """Simple event handler for synchronous event implementations.
 
     Based on (MIT):
         https://github.com/davidvicenteranz/eventhandler/blob/master/eventhandler/__init__.py
     """
 
     def __init__(self, event_names: list[str], swallow_exceptions: bool = True) -> None:
-        self.__events: Dict[str, List[Callable]] = {}
+        self.__events: Dict[str, List[Callable[..., Any]]] = {}
         self.__swallow_exceptions: bool = swallow_exceptions
         if event_names:
             for event in event_names:
                 self.register(str(event))
 
     @property
-    def events(self) -> Dict[str, List[Callable]]:
+    def events(self) -> Dict[str, List[Callable[..., Any]]]:
         """Return events as a dictionary."""
         return self.__events
 
@@ -75,7 +74,7 @@ class EventHandler:
         return True
 
     def register_link(  # noqa: FNE005
-        self, event_name: str, callback: Callable
+        self, event_name: str, callback: Callable[..., Any]
     ) -> bool:
         """
         Register an event with a callback.
@@ -100,7 +99,7 @@ class EventHandler:
             event_name (str): The event name.
 
         Returns:
-            bool: A value indicating whether or not the event was removed from the registrations.
+            bool: True if event was removed, False otherwise.
         """
         if event_name in self.__events:
             del self.__events[event_name]
@@ -117,7 +116,9 @@ class EventHandler:
         """
         return event_name in self.__events
 
-    def is_callback_in_event(self, event_name: str, callback: Callable) -> bool:
+    def is_callback_in_event(
+        self, event_name: str, callback: Callable[..., Any]
+    ) -> bool:
         """
         Return if a given callback is already registered on the events dict.
 
@@ -126,11 +127,11 @@ class EventHandler:
             callback (callable): The callback function to check.
 
         Returns:
-            bool: A value indicating whether or not a given callback is already registered on the events dict.
+            bool: True if callback is registered, False otherwise.
         """
         return callback in self.__events[event_name]
 
-    def link(self, callback: Callable, event_name: str) -> bool:  # noqa: FNE005
+    def link(self, callback: Callable[..., Any], event_name: str) -> bool:  # noqa: FNE005
         """
         Link a callback to be executed on fired event..
 
@@ -153,7 +154,7 @@ class EventHandler:
 
         return False
 
-    def unlink(self, callback: Callable, event_name: str) -> bool:  # noqa: FNE005
+    def unlink(self, callback: Callable[..., Any], event_name: str) -> bool:  # noqa: FNE005
         """
         Unlink a callback execution from a specific event.
 
@@ -174,7 +175,7 @@ class EventHandler:
 
         return False
 
-    def emit(self, event_name: str, *args, **kwargs) -> bool:  # noqa: FNE005
+    def emit(self, event_name: str, *args: Any, **kwargs: Any) -> bool:  # noqa: FNE005
         """
         Triggers all callback executions linked to the given event.
 
