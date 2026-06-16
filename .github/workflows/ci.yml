@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+defaults:
+  run:
+    working-directory: src
+
+jobs:
+  quality:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: |
+          pipx install poetry
+          pipx inject poetry poetry-monoranger-plugin
+
+      - name: Install dependencies
+        run: poetry install
+
+      # ruff and mypy are not yet in pyproject.toml dev deps — install directly
+      # into the poetry venv so they can resolve project types correctly.
+      # TODO: move these into [dependency-groups] dev in yokel-core/pyproject.toml
+      - name: Install quality tools
+        run: poetry run pip install "ruff>=0.4.0" mypy types-pyyaml
+
+      - name: Lint
+        # E,W,F: pycodestyle + pyflakes  I: import order  CLB: flake8-clean-block
+        run: poetry run ruff check --select E,W,F,I,CLB .
+
+      - name: Format check
+        run: poetry run ruff format --check .
+
+      - name: Type check (strict)
+        run: poetry run mypy --strict .
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: |
+          pipx install poetry
+          pipx inject poetry poetry-monoranger-plugin
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Test
+        run: poetry run pytest -m "not requires_api_key"
