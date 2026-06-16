@@ -1,6 +1,12 @@
 {
     "editor.formatOnSave": true,
     "editor.formatOnPaste": true,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "black-formatter.path": [
+        "${workspaceFolder}/.venv/Scripts/black"
+    ],
     "python.testing.pytestArgs": [
         "src"
     ],

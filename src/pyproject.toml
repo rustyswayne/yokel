@@ -20,6 +20,9 @@ yokel-core = { path = "yokel-core", develop = true }
 [tool.poetry.group.projects]
 optional = false
 
+[tool.poetry.group.dev.dependencies]
+black = ">=25.0"
+
 
 [tool.black]
 target-version = ["py311"]
