@@ -1,15 +1,16 @@
-import pytest
 from typing import Sequence
+
+import pytest
+from yokel.core.configuration.interfaces import (
+    IConfigurationManager,
+    IConfigurationSection,
+    IPluginConfigurationSection,
+)
 from yokel.core.configuration.manager import (
     ConfigurationManager,
     ConfigurationSection,
     PluginConfigurationSection,
     StringConfigurationSection,
-)
-from yokel.core.configuration.interfaces import (
-    IConfigurationManager,
-    IConfigurationSection,
-    IPluginConfigurationSection,
 )
 
 
@@ -75,7 +76,7 @@ def test_configuration_manager_register_new_section() -> None:
 
 
 def test_configuration_manager_register_existing_section_raises_exception() -> None:
-    """Test that ConfigurationManager raises an error when registering an existing section."""
+    """Test ConfigurationManager raises error for duplicate section registration."""
     # Arrange
     section_name = "existing_section"
     config = {"key": "value"}

@@ -31,14 +31,17 @@ jobs:
       # into the poetry venv so they can resolve project types correctly.
       # TODO: move these into [dependency-groups] dev in yokel-core/pyproject.toml
       - name: Install quality tools
-        run: poetry run pip install "ruff>=0.4.0" mypy types-pyyaml
+        run: poetry run pip install "ruff>=0.4.0" mypy types-pyyaml flake8 flake8-clean-block
 
       - name: Lint
-        # E,W,F: pycodestyle + pyflakes  I: import order  CLB: flake8-clean-block
-        run: poetry run ruff check --select E,W,F,I,CLB .
+        # E,W,F: pycodestyle + pyflakes  I: import order
+        run: poetry run ruff check --select E,W,F,I .
 
       - name: Format check
         run: poetry run ruff format --check .
+
+      - name: Clean block check
+        run: poetry run flake8 --select=CLB .
 
       - name: Type check (strict)
         run: poetry run mypy --strict .

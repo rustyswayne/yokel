@@ -1,7 +1,9 @@
+from typing import Any
+
 from yokel.core.events import EventHandler
 
 
-def test_can_register_event():
+def test_can_register_event() -> None:
     # Arrange
     event_name = "test_name"
 
@@ -13,7 +15,7 @@ def test_can_register_event():
     assert event_handler.is_event_registered(event_name)
 
 
-def test_can_register_mulitple_events():
+def test_can_register_mulitple_events() -> None:
     # Arrange
     default_events = ["one", "two", "three"]
     supplimental = "four"
@@ -31,13 +33,13 @@ def test_can_register_mulitple_events():
     assert ehandler.is_event_registered("four")
 
 
-def test_can_register_a_callback():
+def test_can_register_a_callback() -> None:
     # Arrange
     event_name = "one"
     added = False
     results = []
 
-    def on_one(*args, **kwargs):
+    def on_one(*args: Any, **kwargs: Any) -> None:
         for arg in kwargs.values():
             results.append(arg)
 
@@ -55,7 +57,7 @@ def test_can_register_a_callback():
     assert 1 in results
 
 
-def test_can_register_multiple_callbacks():
+def test_can_register_multiple_callbacks() -> None:
     # Arrange
     events = ["one", "two"]
     added_one1 = False
@@ -65,16 +67,16 @@ def test_can_register_multiple_callbacks():
     resultsOne2 = []
     results2 = {}
 
-    def on_one1(*args, **kwargs):
+    def on_one1(*args: Any, **kwargs: Any) -> None:
         for arg in args:
             resultsOne1.append(arg)
 
-    def on_one2(*args, **kwargs):
+    def on_one2(*args: Any, **kwargs: Any) -> None:
         values = [a for a in args if a != "skip"]
         for arg in values:
             resultsOne2.append(arg)
 
-    def on_two(*args, **kwargs):
+    def on_two(*args: Any, **kwargs: Any) -> None:
         for key in kwargs.keys():
             results2[key] = kwargs[key]
 
@@ -104,11 +106,11 @@ def test_can_register_multiple_callbacks():
     assert results2["third"] == 3
 
 
-def test_can_register_and_link_event():
+def test_can_register_and_link_event() -> None:
     # Arrange
     ehandler = EventHandler([])
 
-    def test_callback(*args, **kwargs):
+    def test_callback(*args: Any, **kwargs: Any) -> None:
         pass
 
     # Act

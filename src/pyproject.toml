@@ -8,7 +8,7 @@ package-mode = false
 requires-poetry = "^2.4"
 
 [tool.poetry.requires-plugins]
-poetry-monoranger-plugin = "^1.8.1"
+poetry-monoranger-plugin = "^0.4.0"
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -19,6 +19,10 @@ yokel-core = { path = "yokel-core", develop = true }
 
 [tool.poetry.group.projects]
 optional = false
+
+[tool.poetry.group.dev.dependencies]
+black = ">=25.0"
+pytest = ">=9.1.0,<10.0.0"
 
 
 [tool.black]
