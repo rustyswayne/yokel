@@ -40,6 +40,10 @@ We will use an **explicit, injectable `ConfigurationManager`** in `yokel-core`. 
 
 ## Notes
 
+- **Amended by [[ADR-011-yokel-singleton-and-default-provider-registry]]:** `Yokel` is a
+  process-level singleton and a narrow, pattern-only default provider registry is admitted
+  as a sanctioned global. The "no global mutable state" decision here still holds for
+  application configuration; see ADR-011 for the exact boundary.
 - See `05-core.md` → "Configuration System" for the full section/manager/event spec
 - `pyyaml` is listed as a `yokel-core` dependency even in v0.1 to avoid a breaking change when file loading ships
 - [Python `abc` module](https://docs.python.org/3/library/abc.html) — `ABC`, `abstractmethod` used for `IConfigurationManager` and related interfaces
