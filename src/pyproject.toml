@@ -34,7 +34,15 @@ preview = true
 [tool.ruff.lint.isort]
 combine-as-imports = true
 
+[tool.pytest.ini_options]
+markers = ["requires_api_key: live test that calls the real Anthropic API"]
+
 [tool.mypy]
 namespace_packages = true
 explicit_package_bases = true
 mypy_path = ["yokel-core", "yokel-anthropic"]
+# Per-package tests/ dirs have no __init__.py (ADR-010), so each conftest.py
+# resolves to the same "tests.conftest" module name and collides once more
+# than one package ships tests. conftest.py is fixture wiring, not part of
+# the typed public surface, so exclude it rather than add __init__.py.
+exclude = '(^|/)conftest\.py$'
