@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import fnmatch
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 from yokel._builder import MessageBuilder
+from yokel._registry import get_default_providers
 from yokel.core.configuration.manager import ConfigurationManager
 from yokel.core.errors import UnknownModelError
 from yokel.providers import Provider
@@ -12,28 +13,56 @@ from yokel.providers import Provider
 class Yokel:
     """Primary entry point for the yokel library.
 
-    Instantiate once and reuse. Owns the ConfigurationManager that holds
-    plugin registrations and the value store.
-
-    Providers register themselves at import time. Import the provider package
-    before calling model():
+    Yokel() is a process-level singleton: every call with no config argument
+    returns the same instance. Its ConfigurationManager seeds the "plugins"
+    section from the process-level default provider registry, so providers
+    that registered themselves at import time resolve with zero explicit
+    wiring:
 
         import yokel.anthropic  # registers 'claude-*'
         from yokel.api import Yokel
         y = Yokel()
         response = y.model("claude-opus-4-8").user("Hello").send()
 
+    Passing an explicit config dict returns an independent instance instead
+    of the shared singleton -- the isolation path tests use to avoid
+    cross-test state leakage.
+
     Args:
-        config: An existing ConfigurationManager to use. When None, a default
-            manager is constructed automatically.
+        config: A configuration dict merged over DEFAULT_CONFIG and applied
+            to the instance's value_store. A "plugins" key, if present, is
+            stripped before the merge is applied -- the plugins section is
+            seeded only from the default provider registry, never from this
+            dict. When None, the process-level singleton is returned/reused.
     """
 
     DEFAULT_CONFIG: dict[str, Any] = {}
+    _instance: ClassVar[Yokel | None] = None
 
-    def __init__(self, config: ConfigurationManager | None = None) -> None:
-        self._config: ConfigurationManager = (
-            ConfigurationManager() if config is None else config
-        )
+    def __new__(cls, config: dict[str, Any] | None = None) -> Yokel:
+        if config is not None:
+            return super().__new__(cls)
+
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+
+        return cls._instance
+
+    def __init__(self, config: dict[str, Any] | None = None) -> None:
+        if config is None and getattr(self, "_config", None) is not None:
+            return
+
+        merged_config = {**self.DEFAULT_CONFIG, **(config or {})}
+        merged_config.pop("plugins", None)
+
+        manager = ConfigurationManager()
+        for pattern, target in get_default_providers().items():
+            manager.plugins.upsert(pattern, target)
+
+        if merged_config:
+            manager.value_store.patch(merged_config)
+
+        self._config: ConfigurationManager = manager
 
     @property
     def conf(self) -> ConfigurationManager:

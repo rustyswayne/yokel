@@ -1,4 +1,4 @@
-"""Tests for _yokel.Yokel: __init__, conf, model, _resolve_provider."""
+"""Tests for _yokel.Yokel: singleton lifecycle, conf, model, _resolve_provider."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from yokel._builder import MessageBuilder
+from yokel._registry import register_provider
 from yokel._yokel import Yokel
 from yokel.core.configuration.manager import ConfigurationManager
 from yokel.core.errors import AuthError, UnknownModelError
@@ -40,11 +41,69 @@ def _make_config(patterns: dict[str, str], provider: Any) -> ConfigurationManage
     return config
 
 
+def _make_yokel_with_config(patterns: dict[str, str], provider: Any) -> Yokel:
+    """Return an isolated Yokel whose _config resolves patterns to provider."""
+    y = Yokel(config={})
+    y._config = _make_config(patterns, provider)
+    return y
+
+
+class TestYokelSingleton:
+    """Tests for Yokel's process-level singleton lifecycle."""
+
+    def test_bare_construction_returns_same_instance(self) -> None:
+        """Yokel() returns the same instance on every call."""
+        # Arrange & Act
+        first = Yokel()
+        second = Yokel()
+
+        # Assert
+        assert first is second, "Expected repeated Yokel() calls to share an instance"
+
+    def test_explicit_config_returns_independent_instance(self) -> None:
+        """Yokel(config=...) returns an instance distinct from the singleton."""
+        # Arrange
+        singleton = Yokel()
+
+        # Act
+        isolated = Yokel(config={})
+
+        # Assert
+        assert isolated is not singleton, (
+            "Expected Yokel(config=...) to bypass the shared singleton"
+        )
+
+    def test_explicit_config_instances_are_each_independent(self) -> None:
+        """Two Yokel(config=...) calls return two distinct instances."""
+        # Act
+        first = Yokel(config={})
+        second = Yokel(config={})
+
+        # Assert
+        assert first is not second, (
+            "Expected each Yokel(config=...) call to return a fresh instance"
+        )
+
+    def test_repeated_bare_construction_preserves_singleton_state(self) -> None:
+        """Mutations on the singleton's manager persist across Yokel() calls."""
+        # Arrange
+        first = Yokel()
+        first.conf.value_store.upsert("marker", "set")
+
+        # Act
+        second = Yokel()
+
+        # Assert
+        assert second.conf.value_store.get("marker") == "set", (
+            "Expected singleton state to persist across repeated Yokel() calls"
+        )
+
+
 class TestYokelInit:
     """Tests for Yokel.__init__."""
 
-    def test_init_without_config_creates_default_manager(self) -> None:
-        """Yokel() builds a default ConfigurationManager when config is None."""
+    def test_init_without_config_creates_configuration_manager(self) -> None:
+        """Yokel() owns a ConfigurationManager."""
         # Arrange & Act
         y = Yokel()
 
@@ -53,17 +112,75 @@ class TestYokelInit:
             "Expected a ConfigurationManager when no config is provided"
         )
 
-    def test_init_with_config_uses_provided_manager(self) -> None:
-        """Yokel(config=mgr) stores the supplied ConfigurationManager."""
-        # Arrange
-        config = ConfigurationManager()
-
+    def test_init_with_config_patches_value_store(self) -> None:
+        """Yokel(config={...}) writes the dict into the instance's value_store."""
         # Act
-        y = Yokel(config=config)
+        y = Yokel(config={"anthropic_api_key": "sk-test"})
 
         # Assert
-        assert y.conf is config, (
-            "Expected the provided ConfigurationManager to be stored"
+        assert y.conf.value_store.get("anthropic_api_key") == "sk-test", (
+            "Expected the config dict to be applied to value_store"
+        )
+
+    def test_init_merges_default_config_under_explicit_config(self) -> None:
+        """Explicit config values take precedence over DEFAULT_CONFIG."""
+        # Arrange
+        original_default_config = Yokel.DEFAULT_CONFIG
+        Yokel.DEFAULT_CONFIG = {"a": "from-default", "b": "from-default"}
+
+        try:
+            # Act
+            y = Yokel(config={"a": "from-explicit"})
+
+            # Assert
+            assert y.conf.value_store.get("a") == "from-explicit", (
+                "Expected explicit config to override DEFAULT_CONFIG"
+            )
+            assert y.conf.value_store.get("b") == "from-default", (
+                "Expected DEFAULT_CONFIG values to survive when not overridden"
+            )
+        finally:
+            Yokel.DEFAULT_CONFIG = original_default_config
+
+    def test_init_strips_plugins_key_from_config_before_patching_value_store(
+        self,
+    ) -> None:
+        """A "plugins" key in config is not written into value_store."""
+        # Act
+        y = Yokel(config={"plugins": {"claude-*": "module, Class"}, "other": "value"})
+
+        # Assert
+        assert y.conf.value_store.get("plugins") is None, (
+            "Expected 'plugins' to be stripped before patching value_store"
+        )
+        assert y.conf.value_store.get("other") == "value"
+
+    def test_init_seeds_plugins_section_from_default_registry(self) -> None:
+        """Yokel() seeds its plugins section from the default provider registry."""
+        # Arrange
+        register_provider("claude-*", "yokel_anthropic, AnthropicProvider")
+
+        # Act
+        y = Yokel(config={})
+
+        # Assert
+        assert y.conf.plugins.get("claude-*") == "yokel_anthropic, AnthropicProvider", (
+            "Expected the default registry pattern to seed the plugins section"
+        )
+
+    def test_init_does_not_seed_plugins_registered_with_default_false(self) -> None:
+        """Patterns registered with default=False are not seeded into plugins."""
+        # Arrange
+        register_provider(
+            "claude-*", "yokel_anthropic, AnthropicProvider", default=False
+        )
+
+        # Act
+        y = Yokel(config={})
+
+        # Assert
+        assert y.conf.plugins.get("claude-*") is None, (
+            "Expected default=False registrations to be excluded from seeding"
         )
 
 
@@ -73,7 +190,7 @@ class TestYokelConf:
     def test_conf_returns_owned_configuration_manager(self) -> None:
         """conf exposes the ConfigurationManager owned by this instance."""
         # Arrange
-        y = Yokel()
+        y = Yokel(config={})
 
         # Act
         result = y.conf
@@ -91,8 +208,7 @@ class TestYokelModel:
         """model() returns a MessageBuilder when a provider pattern matches."""
         # Arrange
         provider = FakeProvider()
-        config = _make_config({"fake-*": "fake_module, FakeProvider"}, provider)
-        y = Yokel(config=config)
+        y = _make_yokel_with_config({"fake-*": "fake_module, FakeProvider"}, provider)
 
         # Act
         result = y.model("fake-model")
@@ -106,8 +222,7 @@ class TestYokelModel:
         """model() passes model_id through to MessageBuilder._model."""
         # Arrange
         provider = FakeProvider()
-        config = _make_config({"fake-*": "fake_module, FakeProvider"}, provider)
-        y = Yokel(config=config)
+        y = _make_yokel_with_config({"fake-*": "fake_module, FakeProvider"}, provider)
 
         # Act
         result = y.model("fake-model-x")
@@ -121,8 +236,7 @@ class TestYokelModel:
         """model() reads provider.default_max_tokens when max_tokens is None."""
         # Arrange
         provider = FakeProvider()  # default_max_tokens = 512
-        config = _make_config({"fake-*": "fake_module, FakeProvider"}, provider)
-        y = Yokel(config=config)
+        y = _make_yokel_with_config({"fake-*": "fake_module, FakeProvider"}, provider)
 
         # Act
         result = y.model("fake-model")
@@ -136,8 +250,7 @@ class TestYokelModel:
         """model() uses the explicit max_tokens arg over provider.default_max_tokens."""
         # Arrange
         provider = FakeProvider()
-        config = _make_config({"fake-*": "fake_module, FakeProvider"}, provider)
-        y = Yokel(config=config)
+        y = _make_yokel_with_config({"fake-*": "fake_module, FakeProvider"}, provider)
 
         # Act
         result = y.model("fake-model", max_tokens=2048)
@@ -151,8 +264,7 @@ class TestYokelModel:
         """model() creates a MessageBuilder with _system=None and _messages=()."""
         # Arrange
         provider = FakeProvider()
-        config = _make_config({"fake-*": "fake_module, FakeProvider"}, provider)
-        y = Yokel(config=config)
+        y = _make_yokel_with_config({"fake-*": "fake_module, FakeProvider"}, provider)
 
         # Act
         result = y.model("fake-model")
@@ -168,8 +280,7 @@ class TestYokelModel:
     def test_model_with_no_matching_pattern_raises_unknown_model_error(self) -> None:
         """model() raises UnknownModelError when no provider pattern matches."""
         # Arrange
-        config = _make_config({"claude-*": "some_module, SomeClass"}, None)
-        y = Yokel(config=config)
+        y = _make_yokel_with_config({"claude-*": "some_module, SomeClass"}, None)
 
         # Act & Assert
         with pytest.raises(UnknownModelError) as exc_info:
@@ -188,7 +299,9 @@ class TestYokelModel:
         config = MagicMock(spec=ConfigurationManager)
         config.plugins = plugins_mock
         config.value_store = MagicMock()
-        y = Yokel(config=config)
+        y = Yokel(config={})
+        y._config = config
+
         # Act & Assert
         with pytest.raises(AuthError, match="Bad API key"):
             y.model("fake-model")
@@ -201,8 +314,7 @@ class TestYokelResolveProvider:
         """_resolve_provider returns the activated provider when a pattern matches."""
         # Arrange
         provider = FakeProvider()
-        config = _make_config({"claude-*": "some_module, SomeClass"}, provider)
-        y = Yokel(config=config)
+        y = _make_yokel_with_config({"claude-*": "some_module, SomeClass"}, provider)
 
         # Act
         result = y._resolve_provider("claude-opus-4-8")
@@ -225,7 +337,9 @@ class TestYokelResolveProvider:
         config = MagicMock(spec=ConfigurationManager)
         config.plugins = plugins_mock
         config.value_store = MagicMock()
-        y = Yokel(config=config)
+        y = Yokel(config={})
+        y._config = config
+
         # Act
         result = y._resolve_provider("claude-opus-4-8")
 
@@ -248,7 +362,9 @@ class TestYokelResolveProvider:
         config = MagicMock(spec=ConfigurationManager)
         config.plugins = plugins_mock
         config.value_store = value_store_mock
-        y = Yokel(config=config)
+        y = Yokel(config={})
+        y._config = config
+
         # Act
         y._resolve_provider("fake-model")
 
@@ -260,8 +376,7 @@ class TestYokelResolveProvider:
     def test_resolve_provider_with_no_match_raises_unknown_model_error(self) -> None:
         """_resolve_provider raises UnknownModelError when no pattern matches."""
         # Arrange
-        config = _make_config({"claude-*": "some_module, SomeClass"}, None)
-        y = Yokel(config=config)
+        y = _make_yokel_with_config({"claude-*": "some_module, SomeClass"}, None)
 
         # Act & Assert
         with pytest.raises(UnknownModelError) as exc_info:
@@ -280,7 +395,9 @@ class TestYokelResolveProvider:
         config = MagicMock(spec=ConfigurationManager)
         config.plugins = plugins_mock
         config.value_store = MagicMock()
-        y = Yokel(config=config)
+        y = Yokel(config={})
+        y._config = config
+
         # Act & Assert
         with pytest.raises(AuthError, match="Missing credentials"):
             y._resolve_provider("fake-model")

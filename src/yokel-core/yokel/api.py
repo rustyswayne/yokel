@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from yokel._builder import MessageBuilder as MessageBuilder
 from yokel._conversation import Conversation as Conversation
+from yokel._registry import register_provider as register_provider
 from yokel._yokel import Yokel as Yokel
 from yokel.core.errors import (
     AuthError as AuthError,
@@ -25,6 +26,7 @@ __all__ = [
     "Yokel",
     "MessageBuilder",
     "Conversation",
+    "register_provider",
     "Response",
     "Usage",
     "Provider",
