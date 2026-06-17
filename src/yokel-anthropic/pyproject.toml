@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "yokel-anthropic"
+version = "0.1.0"
+description = ""
+authors = ["Rusty Swayne <you@example.com>"]
+# yokel/ has no __init__.py (PEP 420 namespace package, ADR-012) so this
+# distribution can contribute a yokel/anthropic subpackage alongside yokel-core.
+packages = [{ include = "yokel" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+yokel-core = { path = "../yokel-core", develop = true }
+anthropic = ">=0.39.0,<1.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=9.1.0,<10.0.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
