@@ -18,7 +18,8 @@ class Yokel:
     Providers register themselves at import time. Import the provider package
     before calling model():
 
-        import yokel_anthropic  # registers 'claude-*'
+        import yokel.anthropic  # registers 'claude-*'
+        from yokel.api import Yokel
         y = Yokel()
         response = y.model("claude-opus-4-8").user("Hello").send()
 

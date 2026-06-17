@@ -29,3 +29,11 @@ pytest = ">=9.1.0,<10.0.0"
 target-version = ["py311"]
 line-length = 88
 preview = true
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+
+[tool.mypy]
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "yokel-core"

@@ -3,6 +3,8 @@ name = "yokel-core"
 version = "0.1.0"
 description = ""
 authors = ["Rusty Swayne <you@example.com>"]
+# yokel/ has no __init__.py (PEP 420 namespace package, ADR-012) so other
+# distributions (e.g. yokel-anthropic) can contribute yokel/<provider> subpackages.
 packages = [{ include = "yokel" }]
 
 [tool.poetry.dependencies]
