@@ -16,6 +16,7 @@ python = "^3.12"
 # Subprojects - always installed
 [tool.poetry.group.projects.dependencies]
 yokel-core = { path = "yokel-core", develop = true }
+yokel-anthropic = { path = "yokel-anthropic", develop = true }
 
 [tool.poetry.group.projects]
 optional = false
@@ -36,4 +37,4 @@ combine-as-imports = true
 [tool.mypy]
 namespace_packages = true
 explicit_package_bases = true
-mypy_path = "yokel-core"
+mypy_path = ["yokel-core", "yokel-anthropic"]
