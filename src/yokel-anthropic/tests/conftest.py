@@ -30,6 +30,14 @@ def reset_yokel_singleton_and_registry() -> None:
 
 
 @pytest.fixture(autouse=True)
-def clear_anthropic_api_key_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure ANTHROPIC_API_KEY from the real environment never leaks into tests."""
+def clear_anthropic_api_key_env(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure ANTHROPIC_API_KEY from the real environment never leaks into tests.
+
+    Skipped for tests marked requires_api_key, which need the real key.
+    """
+    if request.node.get_closest_marker("requires_api_key") is not None:
+        return
+
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
