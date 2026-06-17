@@ -51,6 +51,11 @@ Providers catch their SDK's authentication and HTTP errors and re-raise as `Auth
 
 ## Notes
 
+- **Convention:** when a provider exception carries no HTTP status at all (e.g. a
+  connection-level failure), map it to `ProviderError(status_code=0, ...)`. Established by
+  [[2026-06-17-anthropic-provider]] §5 for `anthropic.APIConnectionError`; later providers
+  facing the same "no HTTP status" case should reuse `0` rather than inventing a new
+  sentinel.
 - See `01-api-design.md` → "Error Hierarchy" for the full spec and usage example
 - See `03-provider-anthropic.md` → "Error Mapping" for the Anthropic exception map
 - `AuthError` raised at construction time (not at `.send()` time) is a deliberate fail-early policy

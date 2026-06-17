@@ -40,6 +40,10 @@ We will use a **Poetry monorepo managed with `poetry-monoranger-plugin`**. The r
 
 ## Notes
 
+- **See also [[ADR-012-provider-namespace-packaging]]:** provider packages under this
+  monorepo are PEP 420 namespace sub-packages (`yokel.<provider>`), not regular packages
+  with their own `yokel/__init__.py` — their `pyproject.toml` `packages` entries must
+  reflect that.
 - See `02-architecture.md` → "Monorepo Layout" for the full directory tree
 - `poetry-monoranger-plugin` must be listed in `[tool.poetry.requires-plugins]` in the root `pyproject.toml`
 - [Poetry documentation](https://python-poetry.org/docs/) — dependency management, `pyproject.toml` reference, workspace concepts

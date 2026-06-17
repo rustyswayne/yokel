@@ -20,9 +20,16 @@ tags:
 
 Provider packages register **model ID patterns** with the resolver at import time using the `PluginConfigurationSection`: a mapping of `{"pattern": "module, class"}` strings (e.g. `"claude-*"` → `"yokel.anthropic, AnthropicProvider"`). When `yokel.model(id)` is called, the resolver iterates registered patterns, finds the first match, then uses `importlib.import_module` + `getattr` to dynamically import and instantiate the provider. If no pattern matches, `UnknownModelError` is raised with the unmatched model ID.
 
+Registration itself happens through one of two paths, settled in [[2026-06-17-anthropic-provider]] §6 and [[ADR-011-yokel-singleton-and-default-provider-registry]]:
+
 ```python
-# registered by yokel-anthropic at import time
-resolver.register("claude-*", "yokel.anthropic, AnthropicProvider")
+# (a) ergonomic path — writes into the process-level default registry;
+#     Yokel seeds its plugins section from this at construction
+yokel.register_provider("claude-*", "yokel.anthropic, AnthropicProvider", default=True)
+
+# (b) explicit path — writes directly into a given manager's plugins section,
+#     no global state touched (test isolation)
+register(target, manager_or_yokel)
 ```
 
 ## Consequences
