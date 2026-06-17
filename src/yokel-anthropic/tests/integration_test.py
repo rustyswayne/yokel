@@ -6,7 +6,6 @@ import importlib
 import sys
 
 import pytest
-import yokel.anthropic
 from yokel.anthropic._provider import AnthropicProvider
 from yokel.api import Yokel
 
