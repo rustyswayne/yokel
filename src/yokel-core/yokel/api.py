@@ -17,6 +17,7 @@ from yokel.core.errors import (
     AuthError as AuthError,
     ProviderError as ProviderError,
     UnknownModelError as UnknownModelError,
+    UnknownToolError as UnknownToolError,
     YokelError as YokelError,
 )
 from yokel.core.models import (
@@ -41,4 +42,5 @@ __all__ = [
     "AuthError",
     "ProviderError",
     "UnknownModelError",
+    "UnknownToolError",
 ]

@@ -39,3 +39,19 @@ class UnknownModelError(YokelError):
             "before calling model()."
         )
         self.model_id = model_id
+
+
+class UnknownToolError(YokelError):
+    """Raised when no registered tool matches a name passed to .tools().
+
+    Attributes:
+        tool_name: The tool name that could not be resolved.
+    """
+
+    def __init__(self, tool_name: str) -> None:
+        super().__init__(
+            f"No tool is registered for name '{tool_name}'. "
+            "Register the tool with register_tool() or Yokel(tools=[...]) "
+            "before calling tools()."
+        )
+        self.tool_name = tool_name
