@@ -20,9 +20,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 @pytest.fixture(autouse=True)
 def reset_yokel_singleton_and_registry() -> None:
-    """Reset the Yokel singleton and default provider registry between tests."""
+    """Reset the Yokel singleton and default provider/tool registries between tests."""
     from yokel import _registry
     from yokel._yokel import Yokel
 
     Yokel._instance = None
     _registry._default_registry.clear()
+    _registry._default_tool_registry.clear()

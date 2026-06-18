@@ -42,6 +42,7 @@ def test_configuration_manager_initialization(
     assert isinstance(manager, IConfigurationManager)
     assert manager.plugins is not None
     assert manager.value_store is not None
+    assert manager.tools is not None
 
 
 def test_configuration_manager_get_section() -> None:
@@ -99,7 +100,7 @@ def test_configuration_manager_clear() -> None:
 
     # Assert
     section_count = len(getattr(manager, "_ConfigurationManager__sections"))
-    assert section_count == 2  # Only default sections remain
+    assert section_count == 3  # Only default sections remain
     with pytest.raises(KeyError):
         manager.get_section("section1")
 
@@ -114,3 +115,32 @@ def test_plugin_configuration_section_is_typed() -> None:
 
     # Assert
     assert isinstance(plugin_section, IPluginConfigurationSection)
+
+
+def test_tools_section_is_auto_created_plain_section() -> None:
+    """tools is auto-created as a plain ConfigurationSection, not a plugin section."""
+    # Arrange
+    manager = ConfigurationManager()
+
+    # Act
+    tools_section = manager.tools
+
+    # Assert
+    assert isinstance(tools_section, ConfigurationSection)
+    assert not isinstance(tools_section, IPluginConfigurationSection), (
+        "Expected tools section to have no activate(), unlike plugins"
+    )
+    assert tools_section.section_name == "tools"
+
+
+def test_tools_section_supplied_explicitly_is_not_overwritten() -> None:
+    """An explicitly supplied tools section is kept, not replaced by a default."""
+    # Arrange
+    section = ConfigurationSection("tools", {"get_weather": "tool-object"})
+    manager = ConfigurationManager([section])
+
+    # Act
+    result = manager.tools.get("get_weather")
+
+    # Assert
+    assert result == "tool-object", "Expected the supplied tools section to be kept"
