@@ -23,6 +23,8 @@ class FakeProvider(ProviderInterface):
         model: str,
         system: str | None,
         max_tokens: int,
+        *,
+        tools: tuple[Any, ...] = (),
     ) -> Response:
         return Response(
             text="ok",
@@ -30,6 +32,9 @@ class FakeProvider(ProviderInterface):
             stop_reason="end_turn",
             usage=Usage(input_tokens=1, output_tokens=1),
         )
+
+    def encode_assistant_turn(self, response: Response) -> dict[str, Any]:
+        return {"text": response.text}
 
 
 def _make_builder(**overrides: Any) -> MessageBuilder:

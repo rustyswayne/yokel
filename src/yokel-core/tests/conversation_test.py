@@ -25,6 +25,8 @@ class FakeProvider(ProviderInterface):
         model: str,
         system: str | None,
         max_tokens: int,
+        *,
+        tools: tuple[Any, ...] = (),
     ) -> Response:
         return Response(
             text="assistant reply",
@@ -32,6 +34,9 @@ class FakeProvider(ProviderInterface):
             stop_reason="end_turn",
             usage=Usage(input_tokens=2, output_tokens=3),
         )
+
+    def encode_assistant_turn(self, response: Response) -> dict[str, Any]:
+        return {"text": response.text}
 
 
 def _make_conversation(**overrides: Any) -> Conversation:

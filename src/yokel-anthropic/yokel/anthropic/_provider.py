@@ -4,7 +4,7 @@ import os
 from typing import TYPE_CHECKING, Any, Callable, cast
 
 from yokel.core.errors import AuthError, ProviderError
-from yokel.core.models import Response, Usage
+from yokel.core.models import Response, Tool, Usage
 from yokel.providers import ProviderInterface
 
 import anthropic
@@ -57,6 +57,8 @@ class AnthropicProvider(ProviderInterface):
         model: str,
         system: str | None,
         max_tokens: int,
+        *,
+        tools: tuple[Tool, ...] = (),
     ) -> Response:
         """Issue one non-streaming `client.messages.create()` call.
 
@@ -65,6 +67,8 @@ class AnthropicProvider(ProviderInterface):
             model: The model identifier to target (e.g. ``"claude-sonnet-4-6"``).
             system: Optional system prompt; omitted from the request when None.
             max_tokens: Upper bound on tokens the provider may generate.
+            tools: Already-resolved tool declarations. Not yet translated to
+                the SDK's native tools= shape.
 
         Returns:
             A normalised Response containing the generated text, model id,
@@ -98,6 +102,19 @@ class AnthropicProvider(ProviderInterface):
             ) from exc
 
         return self.__to_response(resp)
+
+    def encode_assistant_turn(self, response: Response) -> dict[str, Any]:
+        """Re-encode a Response as the content of an Anthropic assistant turn.
+
+        Args:
+            response: The Response whose assistant turn is being replayed.
+
+        Returns:
+            The provider-native "content" value for a replayed assistant
+            message. Text-only round-trip; tool_use block replay is added
+            once `send()` begins populating `Response.tool_calls`.
+        """
+        return {"text": response.text}
 
     @staticmethod
     def __resolve_api_key(
