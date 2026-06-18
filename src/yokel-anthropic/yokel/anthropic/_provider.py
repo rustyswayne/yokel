@@ -84,7 +84,10 @@ class AnthropicProvider(ProviderInterface):
         kwargs: dict[str, Any] = {
             "model": model,
             "max_tokens": max_tokens,
-            "messages": list(messages),
+            "messages": [
+                {"role": message["role"], "content": message["content"]}
+                for message in messages
+            ],
         }
         if system is not None:
             kwargs["system"] = system

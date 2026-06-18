@@ -103,6 +103,7 @@ class Yokel:
             _max_tokens=effective_max_tokens,
             _system=None,
             _messages=(),
+            _tool_resolver=self._config.tools.get,
         )
 
     def _resolve_provider(self, model_id: str) -> ProviderInterface:

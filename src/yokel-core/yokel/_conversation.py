@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from yokel.providers import ProviderInterface
 
 if TYPE_CHECKING:
-    from yokel.core.models import Response
+    from yokel.core.models import Response, Tool
 
 
 class Conversation:
@@ -30,6 +30,8 @@ class Conversation:
         system: str | None,
         max_tokens: int,
         history: list[dict[str, str]] | None = None,
+        tool_names: tuple[str, ...] = (),
+        tool_resolver: Callable[[str], Tool | None] | None = None,
     ) -> None:
         self.__provider = provider
         self.__model = model
@@ -38,6 +40,8 @@ class Conversation:
         self.__history: list[dict[str, str]] = (
             list(history) if history is not None else []
         )
+        self.__tool_names = tool_names
+        self.__tool_resolver = tool_resolver
 
     @property
     def model(self) -> str:
