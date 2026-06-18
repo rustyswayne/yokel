@@ -11,23 +11,60 @@ import pytest
 from yokel.anthropic._provider import AnthropicProvider
 from yokel.core.configuration.manager import ConfigurationSection
 from yokel.core.errors import AuthError, ProviderError
+from yokel.core.models import Response, Tool, ToolCall, Usage
 
 
-def _make_message(
-    *, text: str = "hi", model: str = "claude-opus-4-8", stop_reason: str = "end_turn"
-) -> Any:
-    """Build a MagicMock standing in for an anthropic.types.Message."""
+def _make_text_block(text: str) -> Any:
+    """Build a MagicMock standing in for an anthropic text content block."""
     block = MagicMock()
     block.type = "text"
     block.text = text
+    return block
 
+
+def _make_tool_use_block(
+    *,
+    block_id: str = "toolu_1",
+    name: str = "get_weather",
+    block_input: dict[str, Any] | None = None,
+) -> Any:
+    """Build a MagicMock standing in for an anthropic tool_use content block."""
+    block = MagicMock()
+    block.type = "tool_use"
+    block.id = block_id
+    block.name = name
+    block.input = block_input if block_input is not None else {"city": "Paris"}
+    return block
+
+
+def _make_message(
+    *,
+    text: str = "hi",
+    model: str = "claude-opus-4-8",
+    stop_reason: str = "end_turn",
+    extra_blocks: list[Any] | None = None,
+) -> Any:
+    """Build a MagicMock standing in for an anthropic.types.Message."""
     message = MagicMock()
-    message.content = [block]
+    message.content = [_make_text_block(text), *(extra_blocks or [])]
     message.model = model
     message.stop_reason = stop_reason
     message.usage.input_tokens = 3
     message.usage.output_tokens = 5
     return message
+
+
+def _make_message_response(
+    *, text: str, tool_calls: tuple[ToolCall, ...] = ()
+) -> Response:
+    """Build a yokel Response for encode_assistant_turn tests."""
+    return Response(
+        text=text,
+        model="claude-opus-4-8",
+        stop_reason="tool_use" if tool_calls else "end_turn",
+        usage=Usage(input_tokens=1, output_tokens=1),
+        tool_calls=tool_calls,
+    )
 
 
 def _status_error(
@@ -277,3 +314,168 @@ class TestSend:
         assert exc_info.value.status_code == 0, (
             "APIConnectionError has no HTTP status -- sentinel must be 0"
         )
+
+    def test_send_with_no_tools_omits_tools_key(self) -> None:
+        """tools=() must not appear as a "tools" key in the create() call kwargs."""
+        # Arrange
+        provider = AnthropicProvider(api_key="sk-explicit")
+        provider._client = MagicMock()
+        provider._client.messages.create.return_value = _make_message()
+
+        # Act
+        provider.send(
+            messages=({"role": "user", "content": "hi"},),
+            model="claude-opus-4-8",
+            system=None,
+            max_tokens=256,
+        )
+
+        # Assert
+        kwargs = provider._client.messages.create.call_args.kwargs
+        assert "tools" not in kwargs, "tools key must be omitted when tools is empty"
+
+    def test_send_with_tools_translates_to_sdk_shape(self) -> None:
+        """Each Tool is translated to {name, description, input_schema}."""
+        # Arrange
+        provider = AnthropicProvider(api_key="sk-explicit")
+        provider._client = MagicMock()
+        provider._client.messages.create.return_value = _make_message()
+        tool = Tool(
+            name="get_weather",
+            description="Look up the current weather for a city.",
+            input_schema={"type": "object", "properties": {}},
+        )
+
+        # Act
+        provider.send(
+            messages=({"role": "user", "content": "hi"},),
+            model="claude-opus-4-8",
+            system=None,
+            max_tokens=256,
+            tools=(tool,),
+        )
+
+        # Assert
+        kwargs = provider._client.messages.create.call_args.kwargs
+        assert kwargs["tools"] == [
+            {
+                "name": "get_weather",
+                "description": "Look up the current weather for a city.",
+                "input_schema": {"type": "object", "properties": {}},
+            }
+        ], "Tool should translate to the SDK's {name, description, input_schema} shape"
+
+    def test_send_with_tool_use_block_parses_into_tool_call(self) -> None:
+        """A tool_use response block round-trips into ToolCall(id, name, input)."""
+        # Arrange
+        provider = AnthropicProvider(api_key="sk-explicit")
+        provider._client = MagicMock()
+        provider._client.messages.create.return_value = _make_message(
+            stop_reason="tool_use",
+            extra_blocks=[
+                _make_tool_use_block(
+                    block_id="toolu_1",
+                    name="get_weather",
+                    block_input={"city": "Paris"},
+                )
+            ],
+        )
+
+        # Act
+        response = provider.send(
+            messages=({"role": "user", "content": "hi"},),
+            model="claude-opus-4-8",
+            system=None,
+            max_tokens=256,
+        )
+
+        # Assert
+        assert response.tool_calls == (
+            ToolCall(id="toolu_1", name="get_weather", input={"city": "Paris"}),
+        ), "Expected the tool_use block to round-trip into a matching ToolCall"
+
+    def test_send_populates_raw_content_with_unmodified_sdk_content(self) -> None:
+        """raw_content carries the SDK response's content list verbatim."""
+        # Arrange
+        provider = AnthropicProvider(api_key="sk-explicit")
+        provider._client = MagicMock()
+        message = _make_message()
+        provider._client.messages.create.return_value = message
+
+        # Act
+        response = provider.send(
+            messages=({"role": "user", "content": "hi"},),
+            model="claude-opus-4-8",
+            system=None,
+            max_tokens=256,
+        )
+
+        # Assert
+        assert response.raw_content is message.content, (
+            "raw_content should be the SDK response's content object, unmodified"
+        )
+
+
+class TestEncodeAssistantTurn:
+    """Tests for AnthropicProvider.encode_assistant_turn."""
+
+    def test_encode_assistant_turn_with_text_only_returns_text_block(self) -> None:
+        """A text-only Response encodes to a single text content block."""
+        # Arrange
+        provider = AnthropicProvider(api_key="sk-explicit")
+        response = _make_message_response(text="hello there")
+
+        # Act
+        result = provider.encode_assistant_turn(response)
+
+        # Assert
+        assert result == {"content": [{"type": "text", "text": "hello there"}]}, (
+            "Expected a single text block carrying the response's text"
+        )
+
+    def test_encode_assistant_turn_with_tool_calls_returns_tool_use_blocks(
+        self,
+    ) -> None:
+        """Each ToolCall encodes to a tool_use block, in order, after the text block."""
+        # Arrange
+        provider = AnthropicProvider(api_key="sk-explicit")
+        call = ToolCall(id="toolu_1", name="get_weather", input={"city": "Paris"})
+        response = _make_message_response(text="Let me check.", tool_calls=(call,))
+
+        # Act
+        result = provider.encode_assistant_turn(response)
+
+        # Assert
+        assert result == {
+            "content": [
+                {"type": "text", "text": "Let me check."},
+                {
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "get_weather",
+                    "input": {"city": "Paris"},
+                },
+            ]
+        }, "Expected a leading text block followed by one tool_use block per call"
+
+    def test_encode_assistant_turn_with_empty_text_omits_text_block(self) -> None:
+        """A pure-tool-call Response (empty text) omits the leading text block."""
+        # Arrange
+        provider = AnthropicProvider(api_key="sk-explicit")
+        call = ToolCall(id="toolu_1", name="get_weather", input={"city": "Paris"})
+        response = _make_message_response(text="", tool_calls=(call,))
+
+        # Act
+        result = provider.encode_assistant_turn(response)
+
+        # Assert
+        assert result == {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "get_weather",
+                    "input": {"city": "Paris"},
+                },
+            ]
+        }, "Expected no text block when response.text is empty"
