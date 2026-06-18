@@ -26,7 +26,12 @@ class FakeProvider(ProviderInterface):
         model: str,
         system: str | None,
         max_tokens: int,
+        *,
+        tools: tuple[Any, ...] = (),
     ) -> Response:
+        raise NotImplementedError
+
+    def encode_assistant_turn(self, response: Response) -> dict[str, Any]:
         raise NotImplementedError
 
 
