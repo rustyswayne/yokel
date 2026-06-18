@@ -204,6 +204,11 @@ class ConfigurationManager(IConfigurationManager):
         """Retrieve the value store configuration section."""
         return self.get_section("value_store")
 
+    @property
+    def tools(self) -> IConfigurationSection:
+        """Retrieve the tools configuration section."""
+        return self.get_section("tools")
+
     def get_section(self, section_name: str) -> IConfigurationSection:
         """Retrieve a configuration section by name."""
         if section_name not in self.__sections:
@@ -260,3 +265,6 @@ class ConfigurationManager(IConfigurationManager):
 
         if "value_store" not in self.__sections:
             self.__sections["value_store"] = ConfigurationSection("value_store")
+
+        if "tools" not in self.__sections:
+            self.__sections["tools"] = ConfigurationSection("tools")
