@@ -19,7 +19,12 @@ from yokel.core.errors import (
     UnknownModelError as UnknownModelError,
     YokelError as YokelError,
 )
-from yokel.core.models import Response as Response, Usage as Usage
+from yokel.core.models import (
+    Response as Response,
+    Tool as Tool,
+    ToolCall as ToolCall,
+    Usage as Usage,
+)
 from yokel.providers import ProviderInterface as ProviderInterface
 
 __all__ = [
@@ -28,6 +33,8 @@ __all__ = [
     "Conversation",
     "register_provider",
     "Response",
+    "Tool",
+    "ToolCall",
     "Usage",
     "ProviderInterface",
     "YokelError",
