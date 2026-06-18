@@ -4,7 +4,7 @@ import os
 from typing import TYPE_CHECKING, Any, Callable, cast
 
 from yokel.core.errors import AuthError, ProviderError
-from yokel.core.models import Response, Tool, Usage
+from yokel.core.models import Response, Tool, ToolCall, Usage
 from yokel.providers import ProviderInterface
 
 import anthropic
@@ -67,12 +67,13 @@ class AnthropicProvider(ProviderInterface):
             model: The model identifier to target (e.g. ``"claude-sonnet-4-6"``).
             system: Optional system prompt; omitted from the request when None.
             max_tokens: Upper bound on tokens the provider may generate.
-            tools: Already-resolved tool declarations. Not yet translated to
-                the SDK's native tools= shape.
+            tools: Already-resolved tool declarations to offer the model;
+                translated to the SDK's tools= kwarg, omitted when empty.
 
         Returns:
             A normalised Response containing the generated text, model id,
-            stop reason, and token usage.
+            stop reason, token usage, any requested tool calls, and the
+            provider's native response content.
 
         Raises:
             AuthError: The request was rejected for authentication or
@@ -87,6 +88,9 @@ class AnthropicProvider(ProviderInterface):
         }
         if system is not None:
             kwargs["system"] = system
+
+        if tools:
+            kwargs["tools"] = [self.__encode_tool(tool) for tool in tools]
 
         try:
             resp = self._client.messages.create(**kwargs)
@@ -110,11 +114,25 @@ class AnthropicProvider(ProviderInterface):
             response: The Response whose assistant turn is being replayed.
 
         Returns:
-            The provider-native "content" value for a replayed assistant
-            message. Text-only round-trip; tool_use block replay is added
-            once `send()` begins populating `Response.tool_calls`.
+            The provider-native "content" block list: a leading text block
+            when `response.text` is non-empty, followed by one "tool_use"
+            block per `response.tool_calls`, in Anthropic's native shape --
+            accepted unchanged as a replayed assistant turn.
         """
-        return {"text": response.text}
+        blocks: list[dict[str, Any]] = []
+        if response.text:
+            blocks.append({"type": "text", "text": response.text})
+
+        blocks.extend(
+            {
+                "type": "tool_use",
+                "id": call.id,
+                "name": call.name,
+                "input": call.input,
+            }
+            for call in response.tool_calls
+        )
+        return {"content": blocks}
 
     @staticmethod
     def __resolve_api_key(
@@ -147,9 +165,25 @@ class AnthropicProvider(ProviderInterface):
         )
 
     @staticmethod
+    def __encode_tool(tool: Tool) -> dict[str, Any]:
+        """Translate a normalised Tool into Anthropic's tools= entry shape."""
+        return {
+            "name": tool.name,
+            "description": tool.description,
+            "input_schema": tool.input_schema,
+        }
+
+    @staticmethod
     def __to_response(resp: anthropic.types.Message) -> Response:
         """Translate an SDK Message into a normalised Response."""
         text = "".join(block.text for block in resp.content if block.type == "text")
+        tool_calls = tuple(
+            ToolCall(
+                id=block.id, name=block.name, input=cast(dict[str, Any], block.input)
+            )
+            for block in resp.content
+            if block.type == "tool_use"
+        )
         return Response(
             text=text,
             model=resp.model,
@@ -158,4 +192,6 @@ class AnthropicProvider(ProviderInterface):
                 input_tokens=resp.usage.input_tokens,
                 output_tokens=resp.usage.output_tokens,
             ),
+            tool_calls=tool_calls,
+            raw_content=resp.content,
         )
