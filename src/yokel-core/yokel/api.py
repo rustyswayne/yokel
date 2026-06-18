@@ -20,7 +20,7 @@ from yokel.core.errors import (
     YokelError as YokelError,
 )
 from yokel.core.models import Response as Response, Usage as Usage
-from yokel.providers import Provider as Provider
+from yokel.providers import ProviderInterface as ProviderInterface
 
 __all__ = [
     "Yokel",
@@ -29,7 +29,7 @@ __all__ = [
     "register_provider",
     "Response",
     "Usage",
-    "Provider",
+    "ProviderInterface",
     "YokelError",
     "AuthError",
     "ProviderError",

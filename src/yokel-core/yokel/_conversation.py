@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from yokel.providers import Provider
+from yokel.providers import ProviderInterface
 
 if TYPE_CHECKING:
     from yokel.core.models import Response
@@ -25,7 +25,7 @@ class Conversation:
 
     def __init__(
         self,
-        provider: Provider,
+        provider: ProviderInterface,
         model: str,
         system: str | None,
         max_tokens: int,

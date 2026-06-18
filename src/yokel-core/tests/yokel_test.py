@@ -12,11 +12,11 @@ from yokel._yokel import Yokel
 from yokel.core.configuration.manager import ConfigurationManager
 from yokel.core.errors import AuthError, UnknownModelError
 from yokel.core.models import Response
-from yokel.providers import Provider
+from yokel.providers import ProviderInterface
 
 
-class FakeProvider(Provider):
-    """Minimal Provider stub for testing; raises NotImplementedError on send."""
+class FakeProvider(ProviderInterface):
+    """Minimal ProviderInterface stub for testing; raises NotImplementedError."""
 
     default_max_tokens: int = 512
 

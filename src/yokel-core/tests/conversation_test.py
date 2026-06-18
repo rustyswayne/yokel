@@ -11,11 +11,11 @@ from unittest.mock import MagicMock
 import pytest
 from yokel._conversation import Conversation
 from yokel.core.models import Response, Usage
-from yokel.providers import Provider
+from yokel.providers import ProviderInterface
 
 
-class FakeProvider(Provider):
-    """Minimal Provider stub that returns a canned Response."""
+class FakeProvider(ProviderInterface):
+    """Minimal ProviderInterface stub that returns a canned Response."""
 
     default_max_tokens: int = 1024
 
@@ -227,7 +227,7 @@ class TestConversationSend:
     def test_send_with_user_turn_calls_provider(self) -> None:
         """send() dispatches to the provider and returns its Response."""
         # Arrange
-        provider = MagicMock(spec=Provider)
+        provider = MagicMock(spec=ProviderInterface)
         expected = Response(
             text="reply", model="fake", stop_reason="end_turn", usage=Usage(1, 1)
         )
@@ -244,7 +244,7 @@ class TestConversationSend:
     def test_send_passes_correct_args_to_provider(self) -> None:
         """send() forwards messages, model, system, and max_tokens to provider."""
         # Arrange
-        provider = MagicMock(spec=Provider)
+        provider = MagicMock(spec=ProviderInterface)
         provider.send.return_value = Response(
             text="ok", model="m", stop_reason="end_turn", usage=Usage(0, 0)
         )
@@ -285,7 +285,7 @@ class TestConversationSend:
     def test_send_appends_assistant_turn_on_max_tokens_stop_reason(self) -> None:
         """send() appends the assistant turn even when stop_reason is 'max_tokens'."""
         # Arrange
-        provider = MagicMock(spec=Provider)
+        provider = MagicMock(spec=ProviderInterface)
         provider.send.return_value = Response(
             text="truncated",
             model="m",

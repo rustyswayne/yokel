@@ -10,7 +10,7 @@ tags:
 
 ## Context
 
-ADR-009 established the toolchain (Ruff, mypy, pytest). That ADR left unspecified the structural and stylistic conventions that govern how code is organised and how tests are written. Without explicit decisions in these areas, contributors will diverge: class layouts become inconsistent, test files proliferate in different shapes, public APIs ship without docstrings, and type-checking fails because new packages are missing PEP 561 markers.
+[[ADR-009-code-quality-tooling|ADR-009]] established the toolchain (Ruff, mypy, pytest). That ADR left unspecified the structural and stylistic conventions that govern how code is organised and how tests are written. Without explicit decisions in these areas, contributors will diverge: class layouts become inconsistent, test files proliferate in different shapes, public APIs ship without docstrings, and type-checking fails because new packages are missing PEP 561 markers.
 
 This ADR captures the conventions that complete the quality story ADR-009 started.
 
@@ -45,6 +45,38 @@ This ADR captures the conventions that complete the quality story ADR-009 starte
 **No bare `except:`.** Always name the exception type. If suppression is intentional, add a comment; CLB rules flag empty handlers that lack one.
 
 **Inline suppression is last resort.** `# noqa:` and `# type: ignore` must include the rule code and a comment explaining the justification. Treat any such line as a code-review flag.
+
+### Naming Conventions
+
+**Amendment (2026-06-18):** Base-class naming depends on *how* the class declares itself
+abstract, not just that it's meant to be subclassed:
+
+| Declaration style | Naming | Example |
+|---|---|---|
+| `class Foo(metaclass=abc.ABCMeta):` — pure contract, no inherited state or implementation | Suffix `Interface` | `ProviderInterface` |
+| `class Foo(abc.ABC):` — abstract base that carries shared state, helper methods, or partial implementation alongside the abstract bits | Prefix `Abstract` | `AbstractFoo` |
+
+`ProviderInterface` is declared with `metaclass=abc.ABCMeta` directly (no inherited
+implementation, just the `send()` contract and a `__subclasshook__`), so it takes the
+`Interface` suffix. A future base class that instead subclasses `abc.ABC` to share concrete
+behavior across implementations would take the `Abstract` prefix instead, not the
+`Interface` suffix — the two are not interchangeable spellings of the same thing.
+
+**`typing.Protocol` is not used for this purpose.** Pure contracts are declared with
+`metaclass=abc.ABCMeta`, full stop — not `Protocol`. This keeps one mechanism for
+"interface" across the codebase (explicit `abc` registration/subclassing, checkable with a
+plain `isinstance()`) rather than two competing ones with different runtime semantics.
+
+Concrete implementations are never prefixed or suffixed for this reason: `AnthropicProvider`
+implements `ProviderInterface`; a `FakeProvider` test double also implements
+`ProviderInterface`. This disambiguates "the contract" from "a thing that satisfies the
+contract" at the call site (`isinstance(x, ProviderInterface)` reads as a contract check;
+`AnthropicProvider` reads as a concrete adapter).
+
+This does not apply to exception classes (`ProviderError` stays as-is — it is not an
+interface) or to feature/concept names used in prose or ADR titles (e.g. "provider
+abstraction," "Provider Namespace Packaging") — only to the actual interface/abstract-base
+type identifier.
 
 ### Documentation
 
@@ -201,6 +233,6 @@ def test_response_is_complete(self, stop_reason: str, expected: bool) -> None: .
 
 ## Notes
 
-- Companion to ADR-009 — toolchain decisions live there; structural and stylistic conventions live here.
+- Companion to [[ADR-009-code-quality-tooling|ADR-009]] — toolchain decisions live there; structural and stylistic conventions live here.
 - Detailed patterns, full examples, and the pre-commit checklist are maintained in `.yokel-design/+/python-quality/references/coding.md` and `testing.md`.
 - `from __future__ import annotations` as first line of every `.py` file is also specified in ADR-009; repeated here for completeness of the coding standards reference.

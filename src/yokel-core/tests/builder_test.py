@@ -9,11 +9,11 @@ import pytest
 from yokel._builder import MessageBuilder
 from yokel._conversation import Conversation
 from yokel.core.models import Response, Usage
-from yokel.providers import Provider
+from yokel.providers import ProviderInterface
 
 
-class FakeProvider(Provider):
-    """Minimal Provider stub that returns a canned Response."""
+class FakeProvider(ProviderInterface):
+    """Minimal ProviderInterface stub that returns a canned Response."""
 
     default_max_tokens: int = 1024
 
@@ -210,7 +210,7 @@ class TestMessageBuilderSend:
     def test_send_with_messages_calls_provider(self) -> None:
         """send() dispatches to the provider and returns its Response."""
         # Arrange
-        provider = MagicMock(spec=Provider)
+        provider = MagicMock(spec=ProviderInterface)
         expected = Response(
             text="hi", model="fake", stop_reason="end_turn", usage=Usage(1, 1)
         )
@@ -229,7 +229,7 @@ class TestMessageBuilderSend:
     def test_send_passes_correct_args_to_provider(self) -> None:
         """send() forwards model, system, max_tokens, and messages to provider.send."""
         # Arrange
-        provider = MagicMock(spec=Provider)
+        provider = MagicMock(spec=ProviderInterface)
         provider.send.return_value = Response(
             text="ok", model="m", stop_reason="end_turn", usage=Usage(0, 0)
         )
