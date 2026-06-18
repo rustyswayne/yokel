@@ -7,7 +7,7 @@ from yokel._builder import MessageBuilder
 from yokel._registry import get_default_providers
 from yokel.core.configuration.manager import ConfigurationManager
 from yokel.core.errors import UnknownModelError
-from yokel.providers import Provider
+from yokel.providers import ProviderInterface
 
 
 class Yokel:
@@ -105,7 +105,7 @@ class Yokel:
             _messages=(),
         )
 
-    def _resolve_provider(self, model_id: str) -> Provider:
+    def _resolve_provider(self, model_id: str) -> ProviderInterface:
         """Iterate registered plugin patterns and return the first matching provider.
 
         Uses fnmatch.fnmatch for glob-style pattern matching (e.g. 'claude-*').
@@ -118,7 +118,7 @@ class Yokel:
         for pattern in self._config.plugins.build():
             if fnmatch.fnmatch(model_id, pattern):
                 return cast(
-                    Provider,
+                    ProviderInterface,
                     self._config.plugins.activate(
                         pattern, value_store=self._config.value_store
                     ),

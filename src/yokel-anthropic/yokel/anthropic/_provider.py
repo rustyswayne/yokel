@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Callable, cast
 
 from yokel.core.errors import AuthError, ProviderError
 from yokel.core.models import Response, Usage
-from yokel.providers import Provider
+from yokel.providers import ProviderInterface
 
 import anthropic
 
@@ -13,8 +13,8 @@ if TYPE_CHECKING:
     from yokel.core.configuration.interfaces import IConfigurationSection
 
 
-class AnthropicProvider(Provider):
-    """Adapts the `anthropic` SDK to the yokel `Provider` contract."""
+class AnthropicProvider(ProviderInterface):
+    """Adapts the `anthropic` SDK to the yokel `ProviderInterface` contract."""
 
     default_max_tokens: int = 4096
 

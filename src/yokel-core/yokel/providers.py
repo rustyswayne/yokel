@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from yokel.core.models import Response
 
 
-class Provider(metaclass=abc.ABCMeta):
+class ProviderInterface(metaclass=abc.ABCMeta):
     """Abstract base class for LLM provider adapters."""
 
     default_max_tokens: int = 1024

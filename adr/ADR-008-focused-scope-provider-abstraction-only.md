@@ -47,6 +47,18 @@ These concerns belong in the application layer or in specialized libraries. The 
 - The event system and configuration manager are internal; their existence does not make yokel an "application framework"
 - Future scope expansions (streaming, tool use, batch API) remain within provider abstraction — they add API surface without adding orchestration concerns
 
+## Amendment (2026-06-18): Tool use is the first realized future-scope expansion
+
+[[2026-06-17-tool-use-support]] (v0.2.0) is the first of the "future scope expansions" named above to actually land, and it confirms the line drawn in this ADR: tool use is split into a **wire-level half** (declaring tools, receiving tool-call requests, submitting tool results — provider abstraction) and a **loop half** (deciding which tool to run, executing it, re-prompting until the model stops — orchestration). yokel implements only the former.
+
+Concretely, in scope under this ADR: `Tool`/`ToolCall` value objects, the `tools` parameter on `ProviderInterface.send()`, and `ProviderInterface.encode_assistant_turn()` for replaying a tool-use turn into history. Still explicitly out of scope: an executor that calls application functions, and any `while stop_reason == "tool_use"` loop baked into `yokel-core` — both remain the application's responsibility, per the "Agent loops and tool orchestration" exclusion above.
+
+This confirms the boundary is workable in practice, not just in principle: tool use expands `ProviderInterface`'s contract (`tools` parameter, `encode_assistant_turn` method) without adding any orchestration concern to `yokel-core` itself.
+
+## Amendment (2026-06-18): Scoped carve-out for a core-executed tool-call loop
+
+[[ADR-013-tool-handler-interface-and-core-loop-executor]] reverses part of the "Agent loops and tool orchestration" exclusion above: `yokel-core` will define a `ToolHandlerInterface` interface and execute the send → dispatch → result loop for declared tools, emitting progress via the existing `EventHandler`. The exclusion is **not** lifted in general — there is still no planning, no multi-step task decomposition, and no cross-provider orchestration in yokel. The carve-out is narrow: running the handler that corresponds to a single declared `Tool` when the model asks for it, and looping that cycle until the model stops asking. See ADR-013 for the full decision and its negative consequences (this is treated as a real boundary erosion to watch, not a free reversal).
+
 ## Notes
 
 - See `00-vision.md` → "What yokel Is Not" for the explicit exclusions

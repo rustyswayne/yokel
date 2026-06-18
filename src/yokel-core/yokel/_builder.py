@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from yokel._conversation import Conversation
 from yokel.core.models import Response
-from yokel.providers import Provider
+from yokel.providers import ProviderInterface
 
 
 @dataclass(frozen=True)
@@ -22,7 +22,7 @@ class MessageBuilder:
     Do not construct directly. Obtain via Yokel.model().
     """
 
-    _provider: Provider
+    _provider: ProviderInterface
     _model: str
     _max_tokens: int
     _system: str | None
