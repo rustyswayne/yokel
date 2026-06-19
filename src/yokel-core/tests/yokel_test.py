@@ -7,11 +7,11 @@ from unittest.mock import MagicMock
 
 import pytest
 from yokel._builder import MessageBuilder
-from yokel._registry import register_provider
+from yokel._registry import register_provider, register_tool
 from yokel._yokel import Yokel
 from yokel.core.configuration.manager import ConfigurationManager
 from yokel.core.errors import AuthError, UnknownModelError
-from yokel.core.models import Response
+from yokel.core.models import Response, Tool
 from yokel.providers import ProviderInterface
 
 
@@ -186,6 +186,131 @@ class TestYokelInit:
         # Assert
         assert y.conf.plugins.get("claude-*") is None, (
             "Expected default=False registrations to be excluded from seeding"
+        )
+
+
+class TestYokelToolRegistration:
+    """Tests for Yokel(tools=...), register_tools, and tools section seeding."""
+
+    def test_init_seeds_tools_section_from_default_registry(self) -> None:
+        """Yokel() seeds its tools section from the default tool registry."""
+        # Arrange
+        tool = Tool(name="get_weather", description="d", input_schema={})
+        register_tool(tool)
+
+        # Act
+        y = Yokel(config={})
+
+        # Assert
+        assert y.conf.tools.get("get_weather") is tool, (
+            "Expected the default tool registry to seed the tools section"
+        )
+
+    def test_init_does_not_seed_tools_registered_with_default_false(self) -> None:
+        """Tools registered with default=False are not seeded into tools."""
+        # Arrange
+        tool = Tool(name="get_weather", description="d", input_schema={})
+        register_tool(tool, default=False)
+
+        # Act
+        y = Yokel(config={})
+
+        # Assert
+        assert y.conf.tools.get("get_weather") is None, (
+            "Expected default=False registrations to be excluded from seeding"
+        )
+
+    def test_constructor_tools_are_resolvable_on_that_instance(self) -> None:
+        """Yokel(tools=[...]) makes each tool resolvable via conf.tools.get."""
+        # Arrange
+        tool = Tool(name="search", description="d", input_schema={})
+
+        # Act
+        y = Yokel(config={}, tools=[tool])
+
+        # Assert
+        assert y.conf.tools.get("search") is tool, (
+            "Expected a constructor-supplied tool to be resolvable on this instance"
+        )
+
+    def test_constructor_tools_layer_on_top_of_default_registry(self) -> None:
+        """Constructor tools= does not replace tools seeded from the default registry"""
+        # Arrange
+        default_tool = Tool(name="get_weather", description="d", input_schema={})
+        register_tool(default_tool)
+        extra_tool = Tool(name="search", description="d", input_schema={})
+
+        # Act
+        y = Yokel(config={}, tools=[extra_tool])
+
+        # Assert
+        assert y.conf.tools.get("get_weather") is default_tool, (
+            "Expected the default registry's tool to still be present"
+        )
+        assert y.conf.tools.get("search") is extra_tool, (
+            "Expected the constructor-supplied tool to also be present"
+        )
+
+    def test_register_tools_adds_tool_after_construction(self) -> None:
+        """register_tools() called after construction makes the tool resolvable."""
+        # Arrange
+        y = Yokel(config={})
+        tool = Tool(name="search", description="d", input_schema={})
+
+        # Act
+        y.register_tools(tool)
+
+        # Assert
+        assert y.conf.tools.get("search") is tool, (
+            "Expected register_tools() to register the tool on this instance"
+        )
+
+    def test_register_tools_accepts_multiple_tools(self) -> None:
+        """register_tools() registers every tool passed in a single call."""
+        # Arrange
+        y = Yokel(config={})
+        weather = Tool(name="get_weather", description="d", input_schema={})
+        search = Tool(name="search", description="d", input_schema={})
+
+        # Act
+        y.register_tools(weather, search)
+
+        # Assert
+        assert y.conf.tools.get("get_weather") is weather
+        assert y.conf.tools.get("search") is search
+
+    def test_register_tools_on_singleton_via_constructor_call(self) -> None:
+        """Yokel(tools=[...]) with no config registers onto the existing singleton."""
+        # Arrange
+        singleton = Yokel()
+        tool = Tool(name="search", description="d", input_schema={})
+
+        # Act
+        again = Yokel(tools=[tool])
+
+        # Assert
+        assert again is singleton, (
+            "Expected Yokel(tools=...) with no config to return the singleton"
+        )
+        assert singleton.conf.tools.get("search") is tool, (
+            "Expected the tool to be registered onto the existing singleton"
+        )
+
+    def test_model_builder_tool_resolver_resolves_registered_tool(self) -> None:
+        """The MessageBuilder from model() resolves names via this instance's tools."""
+        # Arrange
+        provider = FakeProvider()
+        tool = Tool(name="search", description="d", input_schema={})
+        y = Yokel(config={})
+        y._resolve_provider = lambda model_id: provider  # type: ignore[method-assign]
+        y.register_tools(tool)
+
+        # Act
+        builder = y.model("fake-model")
+
+        # Assert
+        assert builder._tool_resolver("search") is tool, (
+            "Expected the builder's _tool_resolver to resolve a registered tool"
         )
 
 
