@@ -341,6 +341,69 @@ class TestConversationToolResult:
         )
 
 
+class TestConversationToolRoundTrip:
+    """Tests for a full tool round-trip, per the design's Problem Statement example."""
+
+    def test_full_round_trip_yields_final_text_response(self) -> None:
+        """.user().send() -> tool_use -> .tool_result() -> .send() -> final text."""
+        # Arrange
+        call = ToolCall(id="toolu_1", name="get_weather", input={"city": "Paris"})
+        tool_use_response = Response(
+            text="Let me check.",
+            model="m",
+            stop_reason="tool_use",
+            usage=Usage(0, 0),
+            tool_calls=(call,),
+        )
+        final_response = Response(
+            text="It's 22C in Paris.",
+            model="m",
+            stop_reason="end_turn",
+            usage=Usage(0, 0),
+        )
+        provider = MagicMock(spec=ProviderInterface)
+        provider.send.side_effect = [tool_use_response, final_response]
+        provider.encode_assistant_turn.side_effect = [
+            {
+                "content": [
+                    {"type": "text", "text": "Let me check."},
+                    {
+                        "type": "tool_use",
+                        "id": "toolu_1",
+                        "name": "get_weather",
+                        "input": {"city": "Paris"},
+                    },
+                ]
+            },
+            {"content": [{"type": "text", "text": "It's 22C in Paris."}]},
+        ]
+        conv = _make_conversation(provider=provider)
+
+        # Act
+        first = conv.user("What's the weather in Paris?").send()
+        assert first.stop_reason == "tool_use", (
+            "Expected the first send() to request a tool call"
+        )
+        for tool_call in first.tool_calls:
+            conv.tool_result(tool_call.id, "22C")
+
+        second = conv.send()
+
+        # Assert
+        assert second is final_response, (
+            "Expected the second send() to return the final text Response"
+        )
+        assert second.stop_reason == "end_turn", (
+            "Expected the round trip to end on a plain text response"
+        )
+        assert [turn["kind"] for turn in conv.history] == [
+            "text",
+            "tool_use",
+            "tool_result",
+            "text",
+        ], "Expected turns tagged: user text, replayed tool_use, tool_result, text"
+
+
 class TestConversationSend:
     """Tests for Conversation.send."""
 
