@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
+from yokel.core.errors import UnknownToolError
 from yokel.providers import ProviderInterface
 
 if TYPE_CHECKING:
@@ -29,7 +30,7 @@ class Conversation:
         model: str,
         system: str | None,
         max_tokens: int,
-        history: list[dict[str, str]] | None = None,
+        history: list[dict[str, Any]] | None = None,
         tool_names: tuple[str, ...] = (),
         tool_resolver: Callable[[str], Tool | None] | None = None,
     ) -> None:
@@ -37,7 +38,7 @@ class Conversation:
         self.__model = model
         self.__system = system
         self.__max_tokens = max_tokens
-        self.__history: list[dict[str, str]] = (
+        self.__history: list[dict[str, Any]] = (
             list(history) if history is not None else []
         )
         self.__tool_names = tool_names
@@ -59,7 +60,7 @@ class Conversation:
         return self.__max_tokens
 
     @property
-    def history(self) -> list[dict[str, str]]:
+    def history(self) -> list[dict[str, Any]]:
         """A shallow copy of the current message history."""
         return list(self.__history)
 
@@ -75,20 +76,58 @@ class Conversation:
         Returns:
             This Conversation instance (mutated in place).
         """
-        self.__history.append({"role": "user", "content": text})
+        self.__history.append({"role": "user", "content": text, "kind": "text"})
+        return self
+
+    def tool_result(
+        self, tool_use_id: str, content: str, *, is_error: bool = False
+    ) -> Conversation:
+        """Append a tool-result block for tool_use_id and return self for chaining.
+
+        Multiple calls before the next .send() accumulate into a single user
+        turn (Anthropic requires all results for one assistant turn batched
+        together), rather than producing separate turns.
+
+        Args:
+            tool_use_id: The ToolCall.id this result answers.
+            content: The tool's result, as a string.
+            is_error: Whether the tool execution failed.
+
+        Returns:
+            This Conversation instance (mutated in place).
+        """
+        block = {
+            "type": "tool_result",
+            "tool_use_id": tool_use_id,
+            "content": content,
+            "is_error": is_error,
+        }
+        if self.__history and self.__history[-1].get("kind") == "tool_result":
+            self.__history[-1]["content"].append(block)
+        else:
+            self.__history.append(
+                {"role": "user", "content": [block], "kind": "tool_result"}
+            )
+
         return self
 
     def send(self) -> Response:
-        """Send the accumulated conversation to the provider.
+        """Resolve tools and send the accumulated conversation to the provider.
 
         Appends the assistant response to history automatically, including on
-        truncated responses (stop_reason == 'max_tokens').
+        truncated responses (stop_reason == 'max_tokens'). The appended turn
+        is the provider's re-encoded replay of (text, tool_calls), tagged
+        kind="tool_use" when the response requested tool calls, else "text".
 
         Returns:
-            A normalised Response containing text, model, stop_reason, and usage.
+            A normalised Response containing text, model, stop_reason, usage,
+            and any requested tool calls.
 
         Raises:
-            ValueError: History is empty or the last message is not a user turn.
+            ValueError: History is empty or the last message is not a user
+                turn (a tool_result turn counts as a user turn).
+            UnknownToolError: A name in this Conversation's tool_names does
+                not resolve against the tool registry.
             AuthError: Provider rejected authentication.
             ProviderError: Provider returned an upstream error.
         """
@@ -101,7 +140,7 @@ class Conversation:
         if self.__history[-1]["role"] != "user":
             raise ValueError(
                 "Cannot send: the last message is not a user turn. "
-                "Call .user() before calling .send() again."
+                "Call .user() or .tool_result() before calling .send() again."
             )
 
         response = self.__provider.send(
@@ -109,10 +148,31 @@ class Conversation:
             model=self.__model,
             system=self.__system,
             max_tokens=self.__max_tokens,
+            tools=self.__resolve_tools(),
         )
-        self.__history.append({"role": "assistant", "content": response.text})
+        encoded = self.__provider.encode_assistant_turn(response)
+        kind = "tool_use" if response.tool_calls else "text"
+        self.__history.append(
+            {"role": "assistant", "content": encoded["content"], "kind": kind}
+        )
         return response
 
     def _reset(self) -> None:
         """Clear all message history. Intended for testing."""
         self.__history.clear()
+
+    def __resolve_tools(self) -> tuple[Tool, ...]:
+        """Resolve tool_names against tool_resolver, in order.
+
+        Raises:
+            UnknownToolError: A name does not resolve against the registry.
+        """
+        resolved: list[Tool] = []
+        for name in self.__tool_names:
+            tool = self.__tool_resolver(name) if self.__tool_resolver else None
+            if tool is None:
+                raise UnknownToolError(name)
+
+            resolved.append(tool)
+
+        return tuple(resolved)
