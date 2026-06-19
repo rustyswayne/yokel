@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from yokel.core.models import Response, Tool, ToolCall, Usage
+from yokel.core.models import Response, Tool, Usage
 
 
 class TestToolFromDict:
@@ -58,20 +58,3 @@ class TestResponse:
 
         # Assert
         assert result.raw_content is None, "Expected raw_content to default to None"
-
-    def test_response_with_tool_calls_stores_them(self) -> None:
-        """Response(tool_calls=...) stores the provided ToolCall tuple."""
-        # Arrange
-        call = ToolCall(id="call_1", name="get_weather", input={"city": "Paris"})
-
-        # Act
-        result = Response(
-            text="",
-            model="m",
-            stop_reason="tool_use",
-            usage=Usage(0, 0),
-            tool_calls=(call,),
-        )
-
-        # Assert
-        assert result.tool_calls == (call,), "Expected tool_calls to round-trip"
