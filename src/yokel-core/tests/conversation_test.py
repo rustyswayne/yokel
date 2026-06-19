@@ -1,6 +1,7 @@
 """Tests for _conversation.Conversation.
 
-Covers: __init__, model, system, max_tokens, history, user, send, _reset.
+Covers: __init__, model, system, max_tokens, history, user, tool_result,
+send, _reset.
 """
 
 from __future__ import annotations
@@ -10,7 +11,8 @@ from unittest.mock import MagicMock
 
 import pytest
 from yokel._conversation import Conversation
-from yokel.core.models import Response, Usage
+from yokel.core.errors import UnknownToolError
+from yokel.core.models import Response, Tool, ToolCall, Usage
 from yokel.providers import ProviderInterface
 
 
@@ -36,7 +38,12 @@ class FakeProvider(ProviderInterface):
         )
 
     def encode_assistant_turn(self, response: Response) -> dict[str, Any]:
-        return {"text": response.text}
+        return {"content": [{"type": "text", "text": response.text}]}
+
+
+def _no_tools_resolver(name: str) -> Tool | None:
+    """A tool resolver stub that never resolves anything."""
+    return None
 
 
 def _make_conversation(**overrides: Any) -> Conversation:
@@ -65,7 +72,7 @@ class TestConversationInit:
     def test_init_with_history_seeds_history(self) -> None:
         """Conversation initialised with history seeds from the provided list."""
         # Arrange
-        seed: list[dict[str, str]] = [{"role": "user", "content": "Hello"}]
+        seed: list[dict[str, Any]] = [{"role": "user", "content": "Hello"}]
 
         # Act
         conv = _make_conversation(history=seed)
@@ -76,7 +83,7 @@ class TestConversationInit:
     def test_init_copies_provided_history_list(self) -> None:
         """Mutating the seed list after construction does not affect history."""
         # Arrange
-        seed: list[dict[str, str]] = [{"role": "user", "content": "Hello"}]
+        seed: list[dict[str, Any]] = [{"role": "user", "content": "Hello"}]
         conv = _make_conversation(history=seed)
 
         # Act
@@ -174,7 +181,7 @@ class TestConversationUser:
     """Tests for Conversation.user."""
 
     def test_user_appends_user_turn(self) -> None:
-        """user() appends a user-role dict to history."""
+        """user() appends a user-role dict tagged kind='text' to history."""
         # Arrange
         conv = _make_conversation()
 
@@ -182,7 +189,7 @@ class TestConversationUser:
         conv.user("Hello")
 
         # Assert
-        assert conv.history == [{"role": "user", "content": "Hello"}], (
+        assert conv.history == [{"role": "user", "content": "Hello", "kind": "text"}], (
             "Expected a single user turn in history"
         )
 
@@ -208,8 +215,8 @@ class TestConversationUser:
 
         # Assert
         assert conv.history == [
-            {"role": "user", "content": "First"},
-            {"role": "user", "content": "Second"},
+            {"role": "user", "content": "First", "kind": "text"},
+            {"role": "user", "content": "Second", "kind": "text"},
         ], "Expected both user turns in insertion order"
 
     def test_user_enables_send_chaining(self) -> None:
@@ -226,6 +233,114 @@ class TestConversationUser:
         )
 
 
+class TestConversationToolResult:
+    """Tests for Conversation.tool_result."""
+
+    def test_tool_result_appends_user_turn_with_block_list(self) -> None:
+        """tool_result() appends a user turn whose content is a list of blocks."""
+        # Arrange
+        conv = _make_conversation()
+
+        # Act
+        conv.tool_result("toolu_1", "22C")
+
+        # Assert
+        assert conv.history == [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_1",
+                        "content": "22C",
+                        "is_error": False,
+                    }
+                ],
+                "kind": "tool_result",
+            }
+        ], "Expected a single tool_result turn with one block"
+
+    def test_tool_result_returns_self(self) -> None:
+        """tool_result() returns the same Conversation instance for chaining."""
+        # Arrange
+        conv = _make_conversation()
+
+        # Act
+        result = conv.tool_result("toolu_1", "22C")
+
+        # Assert
+        assert result is conv, "Expected tool_result() to return self"
+
+    def test_tool_result_with_is_error_sets_flag(self) -> None:
+        """tool_result(is_error=True) sets is_error on the result block."""
+        # Arrange
+        conv = _make_conversation()
+
+        # Act
+        conv.tool_result("toolu_1", "boom", is_error=True)
+
+        # Assert
+        assert conv.history[-1]["content"][0]["is_error"] is True, (
+            "Expected is_error=True to propagate to the result block"
+        )
+
+    def test_multiple_tool_results_accumulate_into_one_turn(self) -> None:
+        """Multiple tool_result() calls before send() land in a single user turn."""
+        # Arrange
+        conv = _make_conversation()
+
+        # Act
+        conv.tool_result("toolu_1", "22C")
+        conv.tool_result("toolu_2", "Sunny")
+
+        # Assert
+        assert len(conv.history) == 1, (
+            "Expected both results to accumulate into a single history turn"
+        )
+        assert conv.history[0]["content"] == [
+            {
+                "type": "tool_result",
+                "tool_use_id": "toolu_1",
+                "content": "22C",
+                "is_error": False,
+            },
+            {
+                "type": "tool_result",
+                "tool_use_id": "toolu_2",
+                "content": "Sunny",
+                "is_error": False,
+            },
+        ], "Expected both blocks present, in call order, on the same turn"
+
+    def test_tool_result_after_unrelated_user_turn_starts_new_turn(self) -> None:
+        """tool_result() after a plain user turn starts a separate turn."""
+        # Arrange
+        conv = _make_conversation()
+        conv.user("Hello")
+
+        # Act
+        conv.tool_result("toolu_1", "22C")
+
+        # Assert
+        assert len(conv.history) == 2, "Expected the user turn and a new tool turn"
+        assert conv.history[0]["kind"] == "text"
+        assert conv.history[1]["kind"] == "tool_result"
+
+    def test_tool_result_enables_send_chaining(self) -> None:
+        """conv.tool_result(...).send() works as the last turn is a user turn."""
+        # Arrange
+        conv = _make_conversation()
+        conv.tool_result("toolu_1", "22C")
+
+        # Act
+        result = conv.send()
+
+        # Assert
+        assert isinstance(result, Response), (
+            "Expected a tool_result turn to satisfy the user-turn precondition"
+        )
+
+
 class TestConversationSend:
     """Tests for Conversation.send."""
 
@@ -237,6 +352,9 @@ class TestConversationSend:
             text="reply", model="fake", stop_reason="end_turn", usage=Usage(1, 1)
         )
         provider.send.return_value = expected
+        provider.encode_assistant_turn.return_value = {
+            "content": [{"type": "text", "text": "reply"}]
+        }
         conv = _make_conversation(provider=provider)
         conv.user("Hello")
 
@@ -247,12 +365,15 @@ class TestConversationSend:
         assert result is expected, "Expected send() to return the provider's Response"
 
     def test_send_passes_correct_args_to_provider(self) -> None:
-        """send() forwards messages, model, system, and max_tokens to provider."""
+        """send() forwards messages, model, system, max_tokens, and tools."""
         # Arrange
         provider = MagicMock(spec=ProviderInterface)
         provider.send.return_value = Response(
             text="ok", model="m", stop_reason="end_turn", usage=Usage(0, 0)
         )
+        provider.encode_assistant_turn.return_value = {
+            "content": [{"type": "text", "text": "ok"}]
+        }
         conv = _make_conversation(
             provider=provider,
             model="test-model",
@@ -266,14 +387,15 @@ class TestConversationSend:
 
         # Assert
         provider.send.assert_called_once_with(
-            messages=({"role": "user", "content": "Hi"},),
+            messages=({"role": "user", "content": "Hi", "kind": "text"},),
             model="test-model",
             system="Be helpful.",
             max_tokens=128,
+            tools=(),
         )
 
     def test_send_appends_assistant_turn_to_history(self) -> None:
-        """send() appends the assistant response text to history after the call."""
+        """send() appends the re-encoded assistant turn after the call."""
         # Arrange
         conv = _make_conversation()
         conv.user("Hello")
@@ -284,8 +406,63 @@ class TestConversationSend:
         # Assert
         assert conv.history[-1] == {
             "role": "assistant",
-            "content": "assistant reply",
-        }, "Expected the assistant turn to be appended after send()"
+            "content": [{"type": "text", "text": "assistant reply"}],
+            "kind": "text",
+        }, "Expected the re-encoded assistant turn to be appended after send()"
+
+    def test_send_tags_kind_tool_use_when_response_has_tool_calls(self) -> None:
+        """send() tags the appended assistant turn kind='tool_use' on tool calls."""
+        # Arrange
+        provider = MagicMock(spec=ProviderInterface)
+        call = ToolCall(id="toolu_1", name="get_weather", input={"city": "Paris"})
+        provider.send.return_value = Response(
+            text="Let me check.",
+            model="m",
+            stop_reason="tool_use",
+            usage=Usage(0, 0),
+            tool_calls=(call,),
+        )
+        provider.encode_assistant_turn.return_value = {
+            "content": [
+                {"type": "text", "text": "Let me check."},
+                {
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "get_weather",
+                    "input": {},
+                },
+            ]
+        }
+        conv = _make_conversation(provider=provider)
+        conv.user("What's the weather in Paris?")
+
+        # Act
+        conv.send()
+
+        # Assert
+        assert conv.history[-1]["kind"] == "tool_use", (
+            "Expected kind='tool_use' when the response carries tool_calls"
+        )
+
+    def test_send_calls_encode_assistant_turn_with_response(self) -> None:
+        """send() re-encodes the assistant turn via provider.encode_assistant_turn."""
+        # Arrange
+        provider = MagicMock(spec=ProviderInterface)
+        expected = Response(
+            text="ok", model="m", stop_reason="end_turn", usage=Usage(0, 0)
+        )
+        provider.send.return_value = expected
+        provider.encode_assistant_turn.return_value = {
+            "content": [{"type": "text", "text": "ok"}]
+        }
+        conv = _make_conversation(provider=provider)
+        conv.user("Hi")
+
+        # Act
+        conv.send()
+
+        # Assert
+        provider.encode_assistant_turn.assert_called_once_with(expected)
 
     def test_send_appends_assistant_turn_on_max_tokens_stop_reason(self) -> None:
         """send() appends the assistant turn even when stop_reason is 'max_tokens'."""
@@ -297,6 +474,9 @@ class TestConversationSend:
             stop_reason="max_tokens",
             usage=Usage(1, 1),
         )
+        provider.encode_assistant_turn.return_value = {
+            "content": [{"type": "text", "text": "truncated"}]
+        }
         conv = _make_conversation(provider=provider)
         conv.user("Hello")
 
@@ -306,7 +486,8 @@ class TestConversationSend:
         # Assert
         assert conv.history[-1] == {
             "role": "assistant",
-            "content": "truncated",
+            "content": [{"type": "text", "text": "truncated"}],
+            "kind": "text",
         }, "Expected assistant turn appended even on max_tokens truncation"
 
     def test_send_with_empty_history_raises_value_error(self) -> None:
@@ -351,6 +532,73 @@ class TestConversationSend:
         assert conv.history[2]["role"] == "user", "Expected third turn to be user"
         assert conv.history[3]["role"] == "assistant", (
             "Expected fourth turn to be assistant"
+        )
+
+
+class TestConversationSendToolResolution:
+    """Tests for tool-name resolution in Conversation.send."""
+
+    def test_send_with_no_tools_passes_empty_tuple(self) -> None:
+        """send() without tool_names passes tools=() to the provider."""
+        # Arrange
+        provider = MagicMock(spec=ProviderInterface)
+        provider.send.return_value = Response(
+            text="ok", model="m", stop_reason="end_turn", usage=Usage(0, 0)
+        )
+        provider.encode_assistant_turn.return_value = {
+            "content": [{"type": "text", "text": "ok"}]
+        }
+        conv = _make_conversation(provider=provider)
+        conv.user("Hi")
+
+        # Act
+        conv.send()
+
+        # Assert
+        assert provider.send.call_args.kwargs["tools"] == (), (
+            "Expected tools=() when no tool names were configured"
+        )
+
+    def test_send_resolves_tool_names_to_tool_instances(self) -> None:
+        """send() resolves each tool_names entry via tool_resolver."""
+        # Arrange
+        provider = MagicMock(spec=ProviderInterface)
+        provider.send.return_value = Response(
+            text="ok", model="m", stop_reason="end_turn", usage=Usage(0, 0)
+        )
+        provider.encode_assistant_turn.return_value = {
+            "content": [{"type": "text", "text": "ok"}]
+        }
+        weather_tool = Tool(name="get_weather", description="d", input_schema={})
+        conv = _make_conversation(
+            provider=provider,
+            tool_names=("get_weather",),
+            tool_resolver=lambda name: weather_tool if name == "get_weather" else None,
+        )
+        conv.user("Hi")
+
+        # Act
+        conv.send()
+
+        # Assert
+        assert provider.send.call_args.kwargs["tools"] == (weather_tool,), (
+            "Expected the resolved Tool to be passed to provider.send"
+        )
+
+    def test_send_with_unresolvable_tool_name_raises_unknown_tool_error(self) -> None:
+        """send() raises UnknownToolError when a tool name does not resolve."""
+        # Arrange
+        conv = _make_conversation(
+            tool_names=("nonexistent",), tool_resolver=_no_tools_resolver
+        )
+        conv.user("Hi")
+
+        # Act & Assert
+        with pytest.raises(UnknownToolError) as exc_info:
+            conv.send()
+
+        assert exc_info.value.tool_name == "nonexistent", (
+            "Expected UnknownToolError.tool_name to equal the unresolved name"
         )
 
 
