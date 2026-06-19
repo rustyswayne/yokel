@@ -8,6 +8,12 @@ from unittest.mock import MagicMock
 import anthropic
 import httpx
 import pytest
+from anthropic.types import (
+    Message as SdkMessage,
+    TextBlock as SdkTextBlock,
+    ToolUseBlock as SdkToolUseBlock,
+    Usage as SdkUsage,
+)
 from yokel.anthropic._provider import AnthropicProvider
 from yokel.core.configuration.manager import ConfigurationSection
 from yokel.core.errors import AuthError, ProviderError
@@ -15,8 +21,8 @@ from yokel.core.models import Response, Tool, ToolCall, Usage
 
 
 def _make_text_block(text: str) -> Any:
-    """Build a MagicMock standing in for an anthropic text content block."""
-    block = MagicMock()
+    """Build a spec'd MagicMock standing in for an anthropic TextBlock."""
+    block = MagicMock(spec=SdkTextBlock)
     block.type = "text"
     block.text = text
     return block
@@ -28,8 +34,8 @@ def _make_tool_use_block(
     name: str = "get_weather",
     block_input: dict[str, Any] | None = None,
 ) -> Any:
-    """Build a MagicMock standing in for an anthropic tool_use content block."""
-    block = MagicMock()
+    """Build a spec'd MagicMock standing in for an anthropic ToolUseBlock."""
+    block = MagicMock(spec=SdkToolUseBlock)
     block.type = "tool_use"
     block.id = block_id
     block.name = name
@@ -44,11 +50,12 @@ def _make_message(
     stop_reason: str = "end_turn",
     extra_blocks: list[Any] | None = None,
 ) -> Any:
-    """Build a MagicMock standing in for an anthropic.types.Message."""
-    message = MagicMock()
+    """Build a spec'd MagicMock standing in for an anthropic.types.Message."""
+    message = MagicMock(spec=SdkMessage)
     message.content = [_make_text_block(text), *(extra_blocks or [])]
     message.model = model
     message.stop_reason = stop_reason
+    message.usage = MagicMock(spec=SdkUsage)
     message.usage.input_tokens = 3
     message.usage.output_tokens = 5
     return message
