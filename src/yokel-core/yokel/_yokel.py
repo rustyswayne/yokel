@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import fnmatch
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Sequence, cast
 
 from yokel._builder import MessageBuilder
-from yokel._registry import get_default_providers
+from yokel._registry import get_default_providers, get_default_tools
 from yokel.core.configuration.manager import ConfigurationManager
 from yokel.core.errors import UnknownModelError
+from yokel.core.models import Tool
 from yokel.providers import ProviderInterface
 
 
@@ -28,18 +29,30 @@ class Yokel:
     of the shared singleton -- the isolation path tests use to avoid
     cross-test state leakage.
 
+    The "tools" section is seeded the same way: from the process-level
+    default tool registry (register_tool()), plus -- additively, never
+    replacing it -- whatever tools are passed via the tools= constructor
+    argument or register_tools().
+
     Args:
         config: A configuration dict merged over DEFAULT_CONFIG and applied
             to the instance's value_store. A "plugins" key, if present, is
             stripped before the merge is applied -- the plugins section is
             seeded only from the default provider registry, never from this
             dict. When None, the process-level singleton is returned/reused.
+        tools: Tools to register into this instance's tools section, on top
+            of whatever the default tool registry already seeded. Equivalent
+            to calling register_tools(*tools) right after construction.
     """
 
     DEFAULT_CONFIG: dict[str, Any] = {}
     _instance: ClassVar[Yokel | None] = None
 
-    def __new__(cls, config: dict[str, Any] | None = None) -> Yokel:
+    def __new__(
+        cls,
+        config: dict[str, Any] | None = None,
+        tools: Sequence[Tool] | None = None,
+    ) -> Yokel:
         if config is not None:
             return super().__new__(cls)
 
@@ -48,8 +61,15 @@ class Yokel:
 
         return cls._instance
 
-    def __init__(self, config: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        config: dict[str, Any] | None = None,
+        tools: Sequence[Tool] | None = None,
+    ) -> None:
         if config is None and getattr(self, "_config", None) is not None:
+            if tools:
+                self.register_tools(*tools)
+
             return
 
         merged_config = {**self.DEFAULT_CONFIG, **(config or {})}
@@ -59,10 +79,30 @@ class Yokel:
         for pattern, target in get_default_providers().items():
             manager.plugins.upsert(pattern, target)
 
+        for name, tool in get_default_tools().items():
+            manager.tools.upsert(name, tool)
+
         if merged_config:
             manager.value_store.patch(merged_config)
 
         self._config: ConfigurationManager = manager
+
+        if tools:
+            self.register_tools(*tools)
+
+    def register_tools(self, *tools: Tool) -> None:
+        """Register tools into this instance's tools configuration section.
+
+        Layers on top of (does not replace) whatever the process-level
+        register_tool() default registry already seeded into this instance.
+        Re-registering a name already present overwrites the previous Tool,
+        matching register_tool()'s last-write-wins semantics.
+
+        Args:
+            tools: Tool instances to register, keyed by their .name.
+        """
+        for tool in tools:
+            self._config.tools.upsert(tool.name, tool)
 
     @property
     def conf(self) -> ConfigurationManager:
