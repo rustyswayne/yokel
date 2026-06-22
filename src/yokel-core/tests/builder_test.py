@@ -9,7 +9,7 @@ import pytest
 from yokel._builder import MessageBuilder
 from yokel._conversation import Conversation
 from yokel.core.errors import UnknownToolError
-from yokel.core.models import Response, Tool, ToolCall, Usage
+from yokel.core.models import Response, Tool, ToolCall, ToolChoice, Usage
 from yokel.providers import ProviderInterface
 
 
@@ -26,6 +26,7 @@ class FakeProvider(ProviderInterface):
         max_tokens: int,
         *,
         tools: tuple[Any, ...] = (),
+        tool_choice: Any = None,
     ) -> Response:
         return Response(
             text="ok",
@@ -264,6 +265,7 @@ class TestMessageBuilderSend:
             system="Be concise.",
             max_tokens=128,
             tools=(),
+            tool_choice=None,
         )
 
     def test_send_with_empty_messages_raises_value_error(self) -> None:
@@ -440,6 +442,108 @@ class TestMessageBuilderTools:
         # Assert
         assert result._tool_names == ("get_weather", "search"), (
             "Expected names from both calls to accumulate in order"
+        )
+
+
+class TestMessageBuilderToolChoice:
+    """Tests for MessageBuilder.tool_choice."""
+
+    def test_tool_choice_sets_field(self) -> None:
+        """tool_choice() returns a new builder with _tool_choice set."""
+        # Arrange
+        builder = _make_builder()
+
+        # Act
+        result = builder.tool_choice(ToolChoice.required())
+
+        # Assert
+        assert result._tool_choice == ToolChoice.required(), (
+            "Expected _tool_choice to be set to the provided choice"
+        )
+
+    def test_tool_choice_does_not_mutate_original_builder(self) -> None:
+        """tool_choice() leaves the original builder's _tool_choice unchanged."""
+        # Arrange
+        builder = _make_builder()
+
+        # Act
+        builder.tool_choice(ToolChoice.required())
+
+        # Assert
+        assert builder._tool_choice is None, (
+            "Expected original builder._tool_choice to remain None"
+        )
+
+    def test_send_passes_tool_choice_to_provider(self) -> None:
+        """send() forwards _tool_choice to provider.send."""
+        # Arrange
+        provider = MagicMock(spec=ProviderInterface)
+        provider.send.return_value = Response(
+            text="ok", model="m", stop_reason="end_turn", usage=Usage(0, 0)
+        )
+        weather_tool = Tool(name="get_weather", description="d", input_schema={})
+        builder = (
+            _make_builder(
+                _provider=provider,
+                _messages=({"role": "user", "content": "Hi"},),
+                _tool_resolver=lambda name: (
+                    weather_tool if name == "get_weather" else None
+                ),
+            )
+            .tools("get_weather")
+            .tool_choice(ToolChoice.required())
+        )
+
+        # Act
+        builder.send()
+
+        # Assert
+        assert provider.send.call_args.kwargs["tool_choice"] == ToolChoice.required(), (
+            "Expected the configured tool_choice to be passed to provider.send"
+        )
+
+    def test_send_with_no_tool_choice_passes_none(self) -> None:
+        """send() without .tool_choice() passes tool_choice=None to the provider."""
+        # Arrange
+        provider = MagicMock(spec=ProviderInterface)
+        provider.send.return_value = Response(
+            text="ok", model="m", stop_reason="end_turn", usage=Usage(0, 0)
+        )
+        builder = _make_builder(
+            _provider=provider, _messages=({"role": "user", "content": "Hi"},)
+        )
+
+        # Act
+        builder.send()
+
+        # Assert
+        assert provider.send.call_args.kwargs["tool_choice"] is None, (
+            "Expected tool_choice=None when .tool_choice() was never called"
+        )
+
+    def test_send_with_required_choice_and_no_tools_raises_value_error(self) -> None:
+        """send() raises ValueError when tool_choice='required' has no tools."""
+        # Arrange
+        builder = _make_builder(
+            _messages=({"role": "user", "content": "Hi"},)
+        ).tool_choice(ToolChoice.required())
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="requires at least one tool"):
+            builder.send()
+
+    def test_conversation_inherits_tool_choice(self) -> None:
+        """conversation() seeds the Conversation's tool_choice from the builder."""
+        # Arrange
+        builder = _make_builder().tool_choice(ToolChoice.required())
+
+        # Act
+        result = builder.conversation()
+
+        # Assert
+        tool_choice = getattr(result, "_Conversation__tool_choice")
+        assert tool_choice == ToolChoice.required(), (
+            "Expected Conversation to receive the builder's _tool_choice"
         )
 
 

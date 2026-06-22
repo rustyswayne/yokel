@@ -17,7 +17,7 @@ from anthropic.types import (
 from yokel.anthropic._provider import AnthropicProvider
 from yokel.core.configuration.manager import ConfigurationSection
 from yokel.core.errors import AuthError, ProviderError
-from yokel.core.models import Response, Tool, ToolCall, Usage
+from yokel.core.models import Response, Tool, ToolCall, ToolChoice, Usage
 
 
 def _make_text_block(text: str) -> Any:
@@ -420,6 +420,119 @@ class TestSend:
         # Assert
         assert response.raw_content is message.content, (
             "raw_content should be the SDK response's content object, unmodified"
+        )
+
+
+class TestSendToolChoice:
+    """Tests for tool_choice translation in AnthropicProvider.send."""
+
+    def test_send_with_no_tool_choice_omits_tool_choice_key(self) -> None:
+        """tool_choice=None must not appear as a "tool_choice" key in create()."""
+        # Arrange
+        provider = AnthropicProvider(api_key="sk-explicit")
+        provider._client = MagicMock()
+        provider._client.messages.create.return_value = _make_message()
+
+        # Act
+        provider.send(
+            messages=({"role": "user", "content": "hi"},),
+            model="claude-opus-4-8",
+            system=None,
+            max_tokens=256,
+        )
+
+        # Assert
+        kwargs = provider._client.messages.create.call_args.kwargs
+        assert "tool_choice" not in kwargs, (
+            "tool_choice key must be omitted when tool_choice is None"
+        )
+
+    def test_send_with_auto_choice_translates_to_sdk_shape(self) -> None:
+        """ToolChoice.auto() translates to {"type": "auto"}."""
+        # Arrange
+        provider = AnthropicProvider(api_key="sk-explicit")
+        provider._client = MagicMock()
+        provider._client.messages.create.return_value = _make_message()
+
+        # Act
+        provider.send(
+            messages=({"role": "user", "content": "hi"},),
+            model="claude-opus-4-8",
+            system=None,
+            max_tokens=256,
+            tool_choice=ToolChoice.auto(),
+        )
+
+        # Assert
+        kwargs = provider._client.messages.create.call_args.kwargs
+        assert kwargs["tool_choice"] == {"type": "auto"}, (
+            "Expected mode='auto' to translate to {'type': 'auto'}"
+        )
+
+    def test_send_with_required_choice_translates_to_any(self) -> None:
+        """ToolChoice.required() translates to Anthropic's {"type": "any"}."""
+        # Arrange
+        provider = AnthropicProvider(api_key="sk-explicit")
+        provider._client = MagicMock()
+        provider._client.messages.create.return_value = _make_message()
+
+        # Act
+        provider.send(
+            messages=({"role": "user", "content": "hi"},),
+            model="claude-opus-4-8",
+            system=None,
+            max_tokens=256,
+            tool_choice=ToolChoice.required(),
+        )
+
+        # Assert
+        kwargs = provider._client.messages.create.call_args.kwargs
+        assert kwargs["tool_choice"] == {"type": "any"}, (
+            "Expected mode='required' to translate to {'type': 'any'}"
+        )
+
+    def test_send_with_none_choice_translates_to_sdk_shape(self) -> None:
+        """ToolChoice.none() translates to {"type": "none"}."""
+        # Arrange
+        provider = AnthropicProvider(api_key="sk-explicit")
+        provider._client = MagicMock()
+        provider._client.messages.create.return_value = _make_message()
+
+        # Act
+        provider.send(
+            messages=({"role": "user", "content": "hi"},),
+            model="claude-opus-4-8",
+            system=None,
+            max_tokens=256,
+            tool_choice=ToolChoice.none(),
+        )
+
+        # Assert
+        kwargs = provider._client.messages.create.call_args.kwargs
+        assert kwargs["tool_choice"] == {"type": "none"}, (
+            "Expected mode='none' to translate to {'type': 'none'}"
+        )
+
+    def test_send_with_tool_choice_translates_to_sdk_shape(self) -> None:
+        """ToolChoice.tool(name) translates to {"type": "tool", "name": name}."""
+        # Arrange
+        provider = AnthropicProvider(api_key="sk-explicit")
+        provider._client = MagicMock()
+        provider._client.messages.create.return_value = _make_message()
+
+        # Act
+        provider.send(
+            messages=({"role": "user", "content": "hi"},),
+            model="claude-opus-4-8",
+            system=None,
+            max_tokens=256,
+            tool_choice=ToolChoice.tool("get_weather"),
+        )
+
+        # Assert
+        kwargs = provider._client.messages.create.call_args.kwargs
+        assert kwargs["tool_choice"] == {"type": "tool", "name": "get_weather"}, (
+            "Expected mode='tool' to translate to {'type': 'tool', 'name': name}"
         )
 
 

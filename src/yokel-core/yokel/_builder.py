@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from yokel._conversation import Conversation
 from yokel.core.errors import UnknownToolError
-from yokel.core.models import Response, Tool
+from yokel.core.models import Response, Tool, ToolChoice
 from yokel.providers import ProviderInterface
 
 
@@ -32,6 +32,7 @@ class MessageBuilder:
     _messages: tuple[dict[str, Any], ...]
     _tool_resolver: Callable[[str], Tool | None]
     _tool_names: tuple[str, ...] = ()
+    _tool_choice: ToolChoice | None = None
     _last_response: Response | None = field(default=None, compare=False)
     _tool_result_used: bool = field(default=False, compare=False)
 
@@ -104,6 +105,17 @@ class MessageBuilder:
         """
         return self.__replace(_tool_names=(*self._tool_names, *names))
 
+    def tool_choice(self, choice: ToolChoice) -> MessageBuilder:
+        """Set or replace the tool_choice policy for this and any inherited request.
+
+        Args:
+            choice: The normalized tool_choice to apply.
+
+        Returns:
+            A new MessageBuilder with _tool_choice set to choice.
+        """
+        return self.__replace(_tool_choice=choice)
+
     def send(self) -> Response:
         """Resolve tools and dispatch the current message list to the provider.
 
@@ -112,7 +124,8 @@ class MessageBuilder:
             any requested tool calls.
 
         Raises:
-            ValueError: _messages is empty — no user turn was added before send.
+            ValueError: _messages is empty — no user turn was added before
+                send, or _tool_choice cannot be honoured by the resolved tools.
             UnknownToolError: A name passed to .tools() does not resolve
                 against the tool registry.
             AuthError: Provider authentication rejected the request.
@@ -124,12 +137,17 @@ class MessageBuilder:
                 "Call .user() at least once before .send()."
             )
 
+        resolved_tools = self.__resolve_tools()
+        if self._tool_choice is not None:
+            self._tool_choice.validate_against(resolved_tools)
+
         response = self._provider.send(
             messages=self._messages,
             model=self._model,
             system=self._system,
             max_tokens=self._max_tokens,
-            tools=self.__resolve_tools(),
+            tools=resolved_tools,
+            tool_choice=self._tool_choice,
         )
         object.__setattr__(self, "_last_response", response)
         object.__setattr__(self, "_tool_result_used", False)
@@ -212,6 +230,7 @@ class MessageBuilder:
             history=list(self._messages),
             tool_names=self._tool_names,
             tool_resolver=self._tool_resolver,
+            tool_choice=self._tool_choice,
         )
 
     def __replace(self, **changes: Any) -> MessageBuilder:

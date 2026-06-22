@@ -24,6 +24,7 @@ from yokel.core.models import (
     Response as Response,
     Tool as Tool,
     ToolCall as ToolCall,
+    ToolChoice as ToolChoice,
     Usage as Usage,
 )
 from yokel.providers import ProviderInterface as ProviderInterface
@@ -36,6 +37,7 @@ __all__ = [
     "Response",
     "Tool",
     "ToolCall",
+    "ToolChoice",
     "Usage",
     "ProviderInterface",
     "YokelError",

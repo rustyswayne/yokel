@@ -28,6 +28,7 @@ class FakeProvider(ProviderInterface):
         max_tokens: int,
         *,
         tools: tuple[Any, ...] = (),
+        tool_choice: Any = None,
     ) -> Response:
         raise NotImplementedError
 

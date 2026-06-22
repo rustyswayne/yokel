@@ -4,7 +4,7 @@ import os
 from typing import TYPE_CHECKING, Any, Callable, cast
 
 from yokel.core.errors import AuthError, ProviderError
-from yokel.core.models import Response, Tool, ToolCall, Usage
+from yokel.core.models import Response, Tool, ToolCall, ToolChoice, Usage
 from yokel.providers import ProviderInterface
 
 import anthropic
@@ -59,6 +59,7 @@ class AnthropicProvider(ProviderInterface):
         max_tokens: int,
         *,
         tools: tuple[Tool, ...] = (),
+        tool_choice: ToolChoice | None = None,
     ) -> Response:
         """Issue one non-streaming `client.messages.create()` call.
 
@@ -69,6 +70,8 @@ class AnthropicProvider(ProviderInterface):
             max_tokens: Upper bound on tokens the provider may generate.
             tools: Already-resolved tool declarations to offer the model;
                 translated to the SDK's tools= kwarg, omitted when empty.
+            tool_choice: Optional normalized tool_choice; translated to the
+                SDK's tool_choice= kwarg, omitted when None.
 
         Returns:
             A normalised Response containing the generated text, model id,
@@ -94,6 +97,9 @@ class AnthropicProvider(ProviderInterface):
 
         if tools:
             kwargs["tools"] = [self.__encode_tool(tool) for tool in tools]
+
+        if tool_choice is not None:
+            kwargs["tool_choice"] = self.__encode_tool_choice(tool_choice)
 
         try:
             resp = self._client.messages.create(**kwargs)
@@ -175,6 +181,14 @@ class AnthropicProvider(ProviderInterface):
             "description": tool.description,
             "input_schema": tool.input_schema,
         }
+
+    @staticmethod
+    def __encode_tool_choice(choice: ToolChoice) -> dict[str, Any]:
+        """Translate a normalised ToolChoice into Anthropic's tool_choice= shape."""
+        if choice.mode == "tool":
+            return {"type": "tool", "name": choice.name}
+
+        return {"type": "any" if choice.mode == "required" else choice.mode}
 
     @staticmethod
     def __to_response(resp: anthropic.types.Message) -> Response:
