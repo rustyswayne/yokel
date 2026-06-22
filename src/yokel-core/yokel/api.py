@@ -25,9 +25,11 @@ from yokel.core.models import (
     Tool as Tool,
     ToolCall as ToolCall,
     ToolChoice as ToolChoice,
+    ToolResult as ToolResult,
     Usage as Usage,
 )
 from yokel.providers import ProviderInterface as ProviderInterface
+from yokel.tool_handlers import ToolHandlerInterface as ToolHandlerInterface
 
 __all__ = [
     "Yokel",
@@ -38,8 +40,10 @@ __all__ = [
     "Tool",
     "ToolCall",
     "ToolChoice",
+    "ToolResult",
     "Usage",
     "ProviderInterface",
+    "ToolHandlerInterface",
     "YokelError",
     "AuthError",
     "ProviderError",
