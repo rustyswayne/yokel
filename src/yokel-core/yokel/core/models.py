@@ -144,6 +144,21 @@ class ToolChoice:
 
 
 @dataclass(frozen=True)
+class ToolResult:
+    """The normalized outcome of running a tool handler.
+
+    Attributes:
+        content: The result to feed back to the model.
+        is_error: Whether this result represents a data-level tool failure
+            (e.g. "city not found") that the model should see and may
+            recover from, rather than a normalized success.
+    """
+
+    content: str
+    is_error: bool = False
+
+
+@dataclass(frozen=True)
 class Response:
     text: str
     model: str
