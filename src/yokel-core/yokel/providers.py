@@ -5,7 +5,7 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    from yokel.core.models import Response, Tool
+    from yokel.core.models import Response, Tool, ToolChoice
 
 
 class ProviderInterface(metaclass=abc.ABCMeta):
@@ -29,6 +29,7 @@ class ProviderInterface(metaclass=abc.ABCMeta):
         max_tokens: int,
         *,
         tools: tuple[Tool, ...] = (),
+        tool_choice: ToolChoice | None = None,
     ) -> Response:
         """Send a chat request to the provider and return a normalised response.
 
@@ -42,6 +43,9 @@ class ProviderInterface(metaclass=abc.ABCMeta):
                 this call; implementations never look up tools by name
                 themselves. Omit the provider's native tools parameter
                 entirely when this is empty.
+            tool_choice: Optional normalized control over whether/which tool
+                the model must use. ``None`` means omit the provider's native
+                tool_choice parameter entirely.
 
         Returns:
             A normalised Response containing the generated text, model id,

@@ -6,7 +6,7 @@ from yokel.core.errors import UnknownToolError
 from yokel.providers import ProviderInterface
 
 if TYPE_CHECKING:
-    from yokel.core.models import Response, Tool
+    from yokel.core.models import Response, Tool, ToolChoice
 
 
 class Conversation:
@@ -33,6 +33,7 @@ class Conversation:
         history: list[dict[str, Any]] | None = None,
         tool_names: tuple[str, ...] = (),
         tool_resolver: Callable[[str], Tool | None] | None = None,
+        tool_choice: ToolChoice | None = None,
     ) -> None:
         self.__provider = provider
         self.__model = model
@@ -43,6 +44,7 @@ class Conversation:
         )
         self.__tool_names = tool_names
         self.__tool_resolver = tool_resolver
+        self.__tool_choice = tool_choice
 
     @property
     def model(self) -> str:
@@ -77,6 +79,21 @@ class Conversation:
             This Conversation instance (mutated in place).
         """
         self.__history.append({"role": "user", "content": text, "kind": "text"})
+        return self
+
+    def tool_choice(self, choice: ToolChoice) -> Conversation:
+        """Set or replace the tool_choice policy and return self for chaining.
+
+        Sticky: applies to every subsequent .send() call on this Conversation,
+        like model/system, until replaced by another call to this method.
+
+        Args:
+            choice: The normalized tool_choice to apply.
+
+        Returns:
+            This Conversation instance (mutated in place).
+        """
+        self.__tool_choice = choice
         return self
 
     def tool_result(
@@ -124,8 +141,9 @@ class Conversation:
             and any requested tool calls.
 
         Raises:
-            ValueError: History is empty or the last message is not a user
-                turn (a tool_result turn counts as a user turn).
+            ValueError: History is empty, the last message is not a user
+                turn (a tool_result turn counts as a user turn), or the
+                tool_choice cannot be honoured by the resolved tools.
             UnknownToolError: A name in this Conversation's tool_names does
                 not resolve against the tool registry.
             AuthError: Provider rejected authentication.
@@ -143,12 +161,17 @@ class Conversation:
                 "Call .user() or .tool_result() before calling .send() again."
             )
 
+        resolved_tools = self.__resolve_tools()
+        if self.__tool_choice is not None:
+            self.__tool_choice.validate_against(resolved_tools)
+
         response = self.__provider.send(
             messages=tuple(self.__history),
             model=self.__model,
             system=self.__system,
             max_tokens=self.__max_tokens,
-            tools=self.__resolve_tools(),
+            tools=resolved_tools,
+            tool_choice=self.__tool_choice,
         )
         encoded = self.__provider.encode_assistant_turn(response)
         kind = "tool_use" if response.tool_calls else "text"

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from yokel._conversation import Conversation
 from yokel.core.errors import UnknownToolError
-from yokel.core.models import Response, Tool, ToolCall, Usage
+from yokel.core.models import Response, Tool, ToolCall, ToolChoice, Usage
 from yokel.providers import ProviderInterface
 
 
@@ -29,6 +29,7 @@ class FakeProvider(ProviderInterface):
         max_tokens: int,
         *,
         tools: tuple[Any, ...] = (),
+        tool_choice: Any = None,
     ) -> Response:
         return Response(
             text="assistant reply",
@@ -455,6 +456,7 @@ class TestConversationSend:
             system="Be helpful.",
             max_tokens=128,
             tools=(),
+            tool_choice=None,
         )
 
     def test_send_appends_assistant_turn_to_history(self) -> None:
@@ -596,6 +598,83 @@ class TestConversationSend:
         assert conv.history[3]["role"] == "assistant", (
             "Expected fourth turn to be assistant"
         )
+
+
+class TestConversationToolChoice:
+    """Tests for Conversation.tool_choice."""
+
+    def test_tool_choice_returns_self(self) -> None:
+        """tool_choice() returns the same Conversation instance for chaining."""
+        # Arrange
+        conv = _make_conversation()
+
+        # Act
+        result = conv.tool_choice(ToolChoice.required())
+
+        # Assert
+        assert result is conv, "Expected tool_choice() to return self"
+
+    def test_tool_choice_is_sticky_across_sends(self) -> None:
+        """A tool_choice set once persists across multiple .send() calls."""
+        # Arrange
+        provider = MagicMock(spec=ProviderInterface)
+        provider.send.return_value = Response(
+            text="ok", model="m", stop_reason="end_turn", usage=Usage(0, 0)
+        )
+        provider.encode_assistant_turn.return_value = {
+            "content": [{"type": "text", "text": "ok"}]
+        }
+        weather_tool = Tool(name="get_weather", description="d", input_schema={})
+        conv = _make_conversation(
+            provider=provider,
+            tool_names=("get_weather",),
+            tool_resolver=lambda name: weather_tool if name == "get_weather" else None,
+        )
+        conv.tool_choice(ToolChoice.required())
+
+        # Act
+        conv.user("First").send()
+        conv.user("Second").send()
+
+        # Assert
+        assert provider.send.call_args_list[0].kwargs["tool_choice"] == (
+            ToolChoice.required()
+        ), "Expected tool_choice to apply to the first send()"
+        assert provider.send.call_args_list[1].kwargs["tool_choice"] == (
+            ToolChoice.required()
+        ), "Expected tool_choice to persist into the second send()"
+
+    def test_send_with_no_tool_choice_passes_none(self) -> None:
+        """send() without .tool_choice() passes tool_choice=None to the provider."""
+        # Arrange
+        provider = MagicMock(spec=ProviderInterface)
+        provider.send.return_value = Response(
+            text="ok", model="m", stop_reason="end_turn", usage=Usage(0, 0)
+        )
+        provider.encode_assistant_turn.return_value = {
+            "content": [{"type": "text", "text": "ok"}]
+        }
+        conv = _make_conversation(provider=provider)
+        conv.user("Hi")
+
+        # Act
+        conv.send()
+
+        # Assert
+        assert provider.send.call_args.kwargs["tool_choice"] is None, (
+            "Expected tool_choice=None when .tool_choice() was never called"
+        )
+
+    def test_send_with_required_choice_and_no_tools_raises_value_error(self) -> None:
+        """send() raises ValueError when tool_choice='required' has no tools."""
+        # Arrange
+        conv = _make_conversation()
+        conv.tool_choice(ToolChoice.required())
+        conv.user("Hi")
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="requires at least one tool"):
+            conv.send()
 
 
 class TestConversationSendToolResolution:

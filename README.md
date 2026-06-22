@@ -2,11 +2,23 @@
 
 A focused Python library that provides a **unified, provider-agnostic API** for LLM providers. Call any supported LLM through one consistent interface; swap providers by changing a single string.
 
+## Why this project exists
+
+yokel is a learning project. The goal is to get hands-on experience integrating with LLMs by building real, working software, layer by layer, rather than reading about it. Each layer is only taken on once the one beneath it is solid, and each is scoped deliberately so the core stays small (see the [ADRs](#architecture-decisions)) instead of accumulating ad hoc complexity:
+
+1. **Provider abstraction** (built) — a unified request/response API across LLM providers; the layer everything else stands on.
+2. **Tool use** (in progress) — wire-level tool-call primitives, with a core tool-handler loop next.
+3. **External tool sources, e.g. MCP** (designed, not yet built) — adapting tools from outside sources onto the same tool-handler seam.
+4. **Context management** (designed, not yet built) — token measurement, compaction, and history fidelity.
+5. **Instructions & skills** (designed, not yet built) — harness-style system-prompt assembly and progressive disclosure, built on top of `system()` and the tool surface.
+
+Sophistication is added as opt-in plugins or pushed to the application layer, never by growing the core's responsibilities.
+
 ## What it is
 
 yokel abstracts the differences between LLM provider SDKs so that application code stays clean and portable. Its job is to normalize request building and response shapes across providers — nothing more.
 
-Explicitly **out of scope**: agent orchestration, prompt templating, response caching, retry/backoff logic, logging, and rate limiting. Those concerns belong in your application layer.
+Explicitly **out of scope**: agent orchestration, prompt templating, response caching, retry/backoff logic, logging, and rate limiting. Those concerns belong in your application layer (at this point).
 
 ## Features
 
