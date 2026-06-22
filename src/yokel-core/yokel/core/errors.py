@@ -55,3 +55,34 @@ class UnknownToolError(YokelError):
             "before calling tools()."
         )
         self.tool_name = tool_name
+
+
+class NoToolHandlerError(YokelError):
+    """Raised when no registered handler resolves for a requested tool call.
+
+    Attributes:
+        name: The tool call name that could not be resolved to a handler.
+    """
+
+    def __init__(self, name: str) -> None:
+        super().__init__(
+            f"No tool handler is registered for name '{name}'. "
+            "Register the handler with register_tool_handler() or "
+            "Yokel(tool_handlers={...}) before calling run_tools()."
+        )
+        self.name = name
+
+
+class ToolLoopLimitError(YokelError):
+    """Raised when run_tools() exceeds its maximum number of iterations.
+
+    Attributes:
+        max_iterations: The iteration limit that was hit.
+    """
+
+    def __init__(self, max_iterations: int) -> None:
+        super().__init__(
+            f"run_tools() exceeded the maximum of {max_iterations} "
+            "iteration(s) without the model stopping its tool requests."
+        )
+        self.max_iterations = max_iterations

@@ -15,7 +15,9 @@ from yokel._registry import register_provider as register_provider
 from yokel._yokel import Yokel as Yokel
 from yokel.core.errors import (
     AuthError as AuthError,
+    NoToolHandlerError as NoToolHandlerError,
     ProviderError as ProviderError,
+    ToolLoopLimitError as ToolLoopLimitError,
     UnknownModelError as UnknownModelError,
     UnknownToolError as UnknownToolError,
     YokelError as YokelError,
@@ -49,4 +51,6 @@ __all__ = [
     "ProviderError",
     "UnknownModelError",
     "UnknownToolError",
+    "NoToolHandlerError",
+    "ToolLoopLimitError",
 ]
